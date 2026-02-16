@@ -1,0 +1,199 @@
+nombre_carrera,universidad,tipo_universidad,ciudad,comunidad_autonoma,modalidad,duracion_años,creditos_ects,rama_conocimiento,nota_corte,plazas,idioma,url_info
+Grado en Ingeniería Informática,Universidad Politécnica de Madrid,Pública,Madrid,Madrid,Presencial,4,240,Ingeniería y Arquitectura,12.5,300,Español/Inglés,https://www.upm.es
+Grado en Ingeniería Informática,Universidad Complutense de Madrid,Pública,Madrid,Madrid,Presencial,4,240,Ingeniería y Arquitectura,11.8,250,Español,https://www.ucm.es
+Grado en Ingeniería Informática,Universidad Politécnica de Cataluña,Pública,Barcelona,Cataluña,Presencial,4,240,Ingeniería y Arquitectura,12.2,280,Catalán/Español,https://www.upc.edu
+Grado en Medicina,Universidad de Barcelona,Pública,Barcelona,Cataluña,Presencial,6,360,Ciencias de la Salud,13.2,180,Catalán/Español,https://www.ub.edu
+Grado en Medicina,Universidad Autónoma de Madrid,Pública,Madrid,Madrid,Presencial,6,360,Ciencias de la Salud,13.5,200,Español,https://www.uam.es
+Grado en Medicina,Universidad de Valencia,Pública,Valencia,Comunidad Valenciana,Presencial,6,360,Ciencias de la Salud,13.0,150,Valenciano/Español,https://www.uv.es
+Grado en Derecho,Universidad de Salamanca,Pública,Salamanca,Castilla y León,Presencial,4,240,Ciencias Sociales y Jurídicas,9.5,400,Español,https://www.usal.es
+Grado en Derecho,Universidad Carlos III de Madrid,Pública,Getafe,Madrid,Presencial,4,240,Ciencias Sociales y Jurídicas,11.2,350,Español/Inglés,https://www.uc3m.es
+Grado en Derecho,Universidad de Granada,Pública,Granada,Andalucía,Presencial,4,240,Ciencias Sociales y Jurídicas,9.8,380,Español,https://www.ugr.es
+Grado en Administración y Dirección de Empresas,ESADE,Privada,Barcelona,Cataluña,Presencial,4,240,Ciencias Sociales y Jurídicas,12.0,200,Español/Inglés,https://www.esade.edu
+Grado en Administración y Dirección de Empresas,Universidad Pompeu Fabra,Pública,Barcelona,Cataluña,Presencial,4,240,Ciencias Sociales y Jurídicas,11.5,180,Catalán/Español/Inglés,https://www.upf.edu
+Grado en Administración y Dirección de Empresas,Universidad de Deusto,Privada,Bilbao,País Vasco,Presencial,4,240,Ciencias Sociales y Jurídicas,10.5,220,Español/Euskera,https://www.deusto.es
+Grado en Psicología,Universidad Autónoma de Barcelona,Pública,Barcelona,Cataluña,Presencial,4,240,Ciencias de la Salud,11.0,200,Catalán/Español,https://www.uab.cat
+Grado en Psicología,Universidad de Sevilla,Pública,Sevilla,Andalucía,Presencial,4,240,Ciencias de la Salud,10.2,250,Español,https://www.us.es
+Grado en Psicología,UNED,Pública,Madrid,Madrid,A distancia,4,240,Ciencias de la Salud,5.0,800,Español,https://www.uned.es
+Grado en Arquitectura,Universidad Politécnica de Madrid,Pública,Madrid,Madrid,Presencial,5,300,Ingeniería y Arquitectura,12.8,150,Español,https://www.upm.es
+Grado en Arquitectura,Universidad Politécnica de Cataluña,Pública,Barcelona,Cataluña,Presencial,5,300,Ingeniería y Arquitectura,12.5,160,Catalán/Español,https://www.upc.edu
+Grado en Arquitectura,Universidad de Navarra,Privada,Pamplona,Navarra,Presencial,5,300,Ingeniería y Arquitectura,11.8,120,Español,https://www.unav.edu
+Grado en Enfermería,Universidad de Navarra,Privada,Pamplona,Navarra,Presencial,4,240,Ciencias de la Salud,12.5,100,Español,https://www.unav.edu
+Grado en Enfermería,Universidad de Alcalá,Pública,Alcalá de Henares,Madrid,Presencial,4,240,Ciencias de la Salud,11.2,150,Español,https://www.uah.es
+Grado en Enfermería,Universidad de Málaga,Pública,Málaga,Andalucía,Presencial,4,240,Ciencias de la Salud,10.8,180,Español,https://www.uma.es
+Grado en Periodismo,Universidad Complutense de Madrid,Pública,Madrid,Madrid,Presencial,4,240,Ciencias Sociales y Jurídicas,10.5,200,Español,https://www.ucm.es
+Grado en Periodismo,Universidad de Navarra,Privada,Pamplona,Navarra,Presencial,4,240,Ciencias Sociales y Jurídicas,11.8,150,Español,https://www.unav.edu
+Grado en Periodismo,Universidad Autónoma de Barcelona,Pública,Barcelona,Cataluña,Presencial,4,240,Ciencias Sociales y Jurídicas,10.8,180,Catalán/Español,https://www.uab.cat
+Grado en Biología,Universidad Complutense de Madrid,Pública,Madrid,Madrid,Presencial,4,240,Ciencias,9.8,250,Español,https://www.ucm.es
+Grado en Biología,Universidad de Barcelona,Pública,Barcelona,Cataluña,Presencial,4,240,Ciencias,10.2,220,Catalán/Español,https://www.ub.edu
+Grado en Biología,Universidad de Valencia,Pública,Valencia,Comunidad Valenciana,Presencial,4,240,Ciencias,9.5,200,Valenciano/Español,https://www.uv.es
+Grado en Matemáticas,Universidad Autónoma de Madrid,Pública,Madrid,Madrid,Presencial,4,240,Ciencias,11.5,120,Español,https://www.uam.es
+Grado en Matemáticas,Universidad de Barcelona,Pública,Barcelona,Cataluña,Presencial,4,240,Ciencias,11.2,100,Catalán/Español,https://www.ub.edu
+Grado en Matemáticas,Universidad de Granada,Pública,Granada,Andalucía,Presencial,4,240,Ciencias,10.8,110,Español,https://www.ugr.es
+Grado en Educación Infantil,Universidad de Salamanca,Pública,Salamanca,Castilla y León,Presencial,4,240,Ciencias Sociales y Jurídicas,7.5,200,Español,https://www.usal.es
+Grado en Educación Infantil,Universidad de Sevilla,Pública,Sevilla,Andalucía,Presencial,4,240,Ciencias Sociales y Jurídicas,7.8,250,Español,https://www.us.es
+Grado en Educación Infantil,Universidad de Valencia,Pública,Valencia,Comunidad Valenciana,Presencial,4,240,Ciencias Sociales y Jurídicas,8.0,220,Valenciano/Español,https://www.uv.es
+Grado en Fisioterapia,Universidad Rey Juan Carlos,Pública,Alcorcón,Madrid,Presencial,4,240,Ciencias de la Salud,12.2,60,Español,https://www.urjc.es
+Grado en Fisioterapia,Universidad de Valencia,Pública,Valencia,Comunidad Valenciana,Presencial,4,240,Ciencias de la Salud,11.8,70,Valenciano/Español,https://www.uv.es
+Grado en Fisioterapia,Universidad de Sevilla,Pública,Sevilla,Andalucía,Presencial,4,240,Ciencias de la Salud,11.5,80,Español,https://www.us.es
+Grado en Economía,Universidad Carlos III de Madrid,Pública,Getafe,Madrid,Presencial,4,240,Ciencias Sociales y Jurídicas,11.8,200,Español/Inglés,https://www.uc3m.es
+Grado en Economía,Universidad Pompeu Fabra,Pública,Barcelona,Cataluña,Presencial,4,240,Ciencias Sociales y Jurídicas,12.2,150,Catalán/Español/Inglés,https://www.upf.edu
+Grado en Economía,Universidad de Alicante,Pública,Alicante,Comunidad Valenciana,Presencial,4,240,Ciencias Sociales y Jurídicas,9.5,180,Español,https://www.ua.es
+Grado en Historia,Universidad Complutense de Madrid,Pública,Madrid,Madrid,Presencial,4,240,Artes y Humanidades,7.0,300,Español,https://www.ucm.es
+Grado en Historia,Universidad de Salamanca,Pública,Salamanca,Castilla y León,Presencial,4,240,Artes y Humanidades,6.8,250,Español,https://www.usal.es
+Grado en Historia,Universidad de Barcelona,Pública,Barcelona,Cataluña,Presencial,4,240,Artes y Humanidades,7.5,280,Catalán/Español,https://www.ub.edu
+Grado en Ingeniería Aeroespacial,Universidad Politécnica de Madrid,Pública,Madrid,Madrid,Presencial,4,240,Ingeniería y Arquitectura,12.8,120,Español/Inglés,https://www.upm.es
+Grado en Ingeniería Aeroespacial,Universidad Politécnica de Cataluña,Pública,Barcelona,Cataluña,Presencial,4,240,Ingeniería y Arquitectura,12.5,100,Catalán/Español,https://www.upc.edu
+Grado en Ingeniería Aeroespacial,Universidad de Sevilla,Pública,Sevilla,Andalucía,Presencial,4,240,Ingeniería y Arquitectura,12.0,90,Español,https://www.us.es
+Grado en Bellas Artes,Universidad Complutense de Madrid,Pública,Madrid,Madrid,Presencial,4,240,Artes y Humanidades,8.5,150,Español,https://www.ucm.es
+Grado en Bellas Artes,Universidad de Barcelona,Pública,Barcelona,Cataluña,Presencial,4,240,Artes y Humanidades,8.2,140,Catalán/Español,https://www.ub.edu
+Grado en Bellas Artes,Universidad Politécnica de Valencia,Pública,Valencia,Comunidad Valenciana,Presencial,4,240,Artes y Humanidades,8.8,130,Valenciano/Español,https://www.upv.es
+Grado en Farmacia,Universidad Complutense de Madrid,Pública,Madrid,Madrid,Presencial,5,300,Ciencias de la Salud,11.5,220,Español,https://www.ucm.es
+Grado en Farmacia,Universidad de Barcelona,Pública,Barcelona,Cataluña,Presencial,5,300,Ciencias de la Salud,11.2,200,Catalán/Español,https://www.ub.edu
+Grado en Farmacia,Universidad de Sevilla,Pública,Sevilla,Andalucía,Presencial,5,300,Ciencias de la Salud,10.8,180,Español,https://www.us.es
+Grado en Veterinaria,Universidad Complutense de Madrid,Pública,Madrid,Madrid,Presencial,5,300,Ciencias de la Salud,12.5,120,Español,https://www.ucm.es
+Grado en Veterinaria,Universidad Autónoma de Barcelona,Pública,Barcelona,Cataluña,Presencial,5,300,Ciencias de la Salud,12.2,100,Catalán/Español,https://www.uab.cat
+Grado en Veterinaria,Universidad de León,Pública,León,Castilla y León,Presencial,5,300,Ciencias de la Salud,11.5,80,Español,https://www.unileon.es
+Grado en Ingenieria Industrial,Universidad Politecnica de Madrid,Publica,Madrid,Madrid,Presencial,4,240,Ingenieria y Arquitectura,12.8,210,Espanol,https://www.upm.es
+Grado en Ingenieria Industrial,Universidad Politecnica de Cataluna,Publica,Barcelona,Cataluna,Presencial,4,240,Ingenieria y Arquitectura,12.4,210,Espanol/Ingles,https://www.upc.edu
+Grado en Ingenieria Industrial,Universidad Politecnica de Valencia,Publica,Valencia,Comunidad Valenciana,Presencial,4,240,Ingenieria y Arquitectura,12.6,210,Espanol/Ingles,https://www.upv.es
+Grado en Ingenieria Industrial,Universidad de Sevilla,Publica,Sevilla,Andalucia,Presencial,4,240,Ingenieria y Arquitectura,12.9,210,Espanol,https://www.us.es
+Grado en Ingenieria Industrial,Universidad de Zaragoza,Publica,Zaragoza,Aragon,Presencial,4,240,Ingenieria y Arquitectura,11.7,210,Espanol/Ingles,https://www.unizar.es
+Grado en Ingenieria Industrial,Universidad del Pais Vasco,Publica,Bilbao,Pais Vasco,Presencial,4,240,Ingenieria y Arquitectura,11.5,210,Espanol/Ingles,https://www.ehu.eus
+Grado en Ingenieria Mecanica,Universidad Politecnica de Madrid,Publica,Madrid,Madrid,Presencial,4,240,Ingenieria y Arquitectura,11.1,207,Espanol,https://www.upm.es
+Grado en Ingenieria Mecanica,Universidad Politecnica de Cataluna,Publica,Barcelona,Cataluna,Presencial,4,240,Ingenieria y Arquitectura,12.2,207,Espanol/Ingles,https://www.upc.edu
+Grado en Ingenieria Mecanica,Universidad Politecnica de Valencia,Publica,Valencia,Comunidad Valenciana,Presencial,4,240,Ingenieria y Arquitectura,12.6,207,Espanol/Ingles,https://www.upv.es
+Grado en Ingenieria Mecanica,Universidad de Sevilla,Publica,Sevilla,Andalucia,Presencial,4,240,Ingenieria y Arquitectura,11.8,207,Espanol,https://www.us.es
+Grado en Ingenieria Mecanica,Universidad de Zaragoza,Publica,Zaragoza,Aragon,Presencial,4,240,Ingenieria y Arquitectura,11.4,207,Espanol/Ingles,https://www.unizar.es
+Grado en Ingenieria Mecanica,Universidad del Pais Vasco,Publica,Bilbao,Pais Vasco,Presencial,4,240,Ingenieria y Arquitectura,11.3,207,Espanol/Ingles,https://www.ehu.eus
+Grado en Ingenieria Electrica,Universidad Politecnica de Madrid,Publica,Madrid,Madrid,Presencial,4,240,Ingenieria y Arquitectura,10.5,179,Espanol,https://www.upm.es
+Grado en Ingenieria Electrica,Universidad Politecnica de Cataluna,Publica,Barcelona,Cataluna,Presencial,4,240,Ingenieria y Arquitectura,12.0,179,Espanol/Ingles,https://www.upc.edu
+Grado en Ingenieria Electrica,Universidad Politecnica de Valencia,Publica,Valencia,Comunidad Valenciana,Presencial,4,240,Ingenieria y Arquitectura,11.9,179,Espanol/Ingles,https://www.upv.es
+Grado en Ingenieria Electrica,Universidad de Sevilla,Publica,Sevilla,Andalucia,Presencial,4,240,Ingenieria y Arquitectura,11.6,179,Espanol,https://www.us.es
+Grado en Ingenieria Electrica,Universidad de Zaragoza,Publica,Zaragoza,Aragon,Presencial,4,240,Ingenieria y Arquitectura,11.1,179,Espanol/Ingles,https://www.unizar.es
+Grado en Ingenieria Electrica,Universidad del Pais Vasco,Publica,Bilbao,Pais Vasco,Presencial,4,240,Ingenieria y Arquitectura,11.6,179,Espanol/Ingles,https://www.ehu.eus
+Grado en Ingenieria Electronica,Universidad Politecnica de Madrid,Publica,Madrid,Madrid,Presencial,4,240,Ingenieria y Arquitectura,11.2,168,Espanol,https://www.upm.es
+Grado en Ingenieria Electronica,Universidad Politecnica de Cataluna,Publica,Barcelona,Cataluna,Presencial,4,240,Ingenieria y Arquitectura,12.3,168,Espanol/Ingles,https://www.upc.edu
+Grado en Ingenieria Electronica,Universidad Politecnica de Valencia,Publica,Valencia,Comunidad Valenciana,Presencial,4,240,Ingenieria y Arquitectura,11.7,168,Espanol/Ingles,https://www.upv.es
+Grado en Ingenieria Electronica,Universidad de Sevilla,Publica,Sevilla,Andalucia,Presencial,4,240,Ingenieria y Arquitectura,11.2,168,Espanol,https://www.us.es
+Grado en Ingenieria Electronica,Universidad de Zaragoza,Publica,Zaragoza,Aragon,Presencial,4,240,Ingenieria y Arquitectura,12.5,168,Espanol/Ingles,https://www.unizar.es
+Grado en Ingenieria Electronica,Universidad del Pais Vasco,Publica,Bilbao,Pais Vasco,Presencial,4,240,Ingenieria y Arquitectura,12.0,168,Espanol/Ingles,https://www.ehu.eus
+Grado en Ingenieria de Telecomunicaciones,Universidad Politecnica de Madrid,Publica,Madrid,Madrid,Presencial,4,240,Ingenieria y Arquitectura,12.5,190,Espanol,https://www.upm.es
+Grado en Ingenieria de Telecomunicaciones,Universidad Politecnica de Cataluna,Publica,Barcelona,Cataluna,Presencial,4,240,Ingenieria y Arquitectura,12.2,190,Espanol/Ingles,https://www.upc.edu
+Grado en Ingenieria de Telecomunicaciones,Universidad Politecnica de Valencia,Publica,Valencia,Comunidad Valenciana,Presencial,4,240,Ingenieria y Arquitectura,12.7,190,Espanol/Ingles,https://www.upv.es
+Grado en Ingenieria de Telecomunicaciones,Universidad de Sevilla,Publica,Sevilla,Andalucia,Presencial,4,240,Ingenieria y Arquitectura,13.5,190,Espanol,https://www.us.es
+Grado en Ingenieria de Telecomunicaciones,Universidad de Zaragoza,Publica,Zaragoza,Aragon,Presencial,4,240,Ingenieria y Arquitectura,12.1,190,Espanol/Ingles,https://www.unizar.es
+Grado en Ingenieria de Telecomunicaciones,Universidad del Pais Vasco,Publica,Bilbao,Pais Vasco,Presencial,4,240,Ingenieria y Arquitectura,12.2,190,Espanol/Ingles,https://www.ehu.eus
+Grado en Ingenieria Civil,Universidad Politecnica de Madrid,Publica,Madrid,Madrid,Presencial,4,240,Ingenieria y Arquitectura,11.9,157,Espanol,https://www.upm.es
+Grado en Ingenieria Civil,Universidad Politecnica de Cataluna,Publica,Barcelona,Cataluna,Presencial,4,240,Ingenieria y Arquitectura,10.6,157,Espanol/Ingles,https://www.upc.edu
+Grado en Ingenieria Civil,Universidad Politecnica de Valencia,Publica,Valencia,Comunidad Valenciana,Presencial,4,240,Ingenieria y Arquitectura,11.7,157,Espanol/Ingles,https://www.upv.es
+Grado en Ingenieria Civil,Universidad de Sevilla,Publica,Sevilla,Andalucia,Presencial,4,240,Ingenieria y Arquitectura,12.1,157,Espanol,https://www.us.es
+Grado en Ingenieria Civil,Universidad de Zaragoza,Publica,Zaragoza,Aragon,Presencial,4,240,Ingenieria y Arquitectura,11.6,157,Espanol/Ingles,https://www.unizar.es
+Grado en Ingenieria Civil,Universidad del Pais Vasco,Publica,Bilbao,Pais Vasco,Presencial,4,240,Ingenieria y Arquitectura,11.5,157,Espanol/Ingles,https://www.ehu.eus
+Grado en Ingenieria Quimica,Universidad Politecnica de Madrid,Publica,Madrid,Madrid,Presencial,4,240,Ingenieria y Arquitectura,11.6,184,Espanol,https://www.upm.es
+Grado en Ingenieria Quimica,Universidad Politecnica de Cataluna,Publica,Barcelona,Cataluna,Presencial,4,240,Ingenieria y Arquitectura,12.8,184,Espanol/Ingles,https://www.upc.edu
+Grado en Ingenieria Quimica,Universidad Politecnica de Valencia,Publica,Valencia,Comunidad Valenciana,Presencial,4,240,Ingenieria y Arquitectura,12.6,184,Espanol/Ingles,https://www.upv.es
+Grado en Ingenieria Quimica,Universidad de Sevilla,Publica,Sevilla,Andalucia,Presencial,4,240,Ingenieria y Arquitectura,10.9,184,Espanol,https://www.us.es
+Grado en Ingenieria Quimica,Universidad de Zaragoza,Publica,Zaragoza,Aragon,Presencial,4,240,Ingenieria y Arquitectura,11.8,184,Espanol/Ingles,https://www.unizar.es
+Grado en Ingenieria Quimica,Universidad del Pais Vasco,Publica,Bilbao,Pais Vasco,Presencial,4,240,Ingenieria y Arquitectura,11.5,184,Espanol/Ingles,https://www.ehu.eus
+Grado en Ingenieria de Materiales,Universidad Politecnica de Madrid,Publica,Madrid,Madrid,Presencial,4,240,Ingenieria y Arquitectura,10.4,169,Espanol,https://www.upm.es
+Grado en Ingenieria de Materiales,Universidad Politecnica de Cataluna,Publica,Barcelona,Cataluna,Presencial,4,240,Ingenieria y Arquitectura,10.7,169,Espanol/Ingles,https://www.upc.edu
+Grado en Ingenieria de Materiales,Universidad Politecnica de Valencia,Publica,Valencia,Comunidad Valenciana,Presencial,4,240,Ingenieria y Arquitectura,11.5,169,Espanol/Ingles,https://www.upv.es
+Grado en Ingenieria de Materiales,Universidad de Sevilla,Publica,Sevilla,Andalucia,Presencial,4,240,Ingenieria y Arquitectura,11.2,169,Espanol,https://www.us.es
+Grado en Ingenieria de Materiales,Universidad de Zaragoza,Publica,Zaragoza,Aragon,Presencial,4,240,Ingenieria y Arquitectura,10.1,169,Espanol/Ingles,https://www.unizar.es
+Grado en Ingenieria de Materiales,Universidad del Pais Vasco,Publica,Bilbao,Pais Vasco,Presencial,4,240,Ingenieria y Arquitectura,10.9,169,Espanol/Ingles,https://www.ehu.eus
+Grado en Ingenieria Biomedica,Universidad Politecnica de Madrid,Publica,Madrid,Madrid,Presencial,4,240,Ingenieria y Arquitectura,12.6,242,Espanol,https://www.upm.es
+Grado en Ingenieria Biomedica,Universidad Politecnica de Cataluna,Publica,Barcelona,Cataluna,Presencial,4,240,Ingenieria y Arquitectura,13.1,242,Espanol/Ingles,https://www.upc.edu
+Grado en Ingenieria Biomedica,Universidad Politecnica de Valencia,Publica,Valencia,Comunidad Valenciana,Presencial,4,240,Ingenieria y Arquitectura,13.4,242,Espanol/Ingles,https://www.upv.es
+Grado en Ingenieria Biomedica,Universidad de Sevilla,Publica,Sevilla,Andalucia,Presencial,4,240,Ingenieria y Arquitectura,12.9,242,Espanol,https://www.us.es
+Grado en Ingenieria Biomedica,Universidad de Zaragoza,Publica,Zaragoza,Aragon,Presencial,4,240,Ingenieria y Arquitectura,12.9,242,Espanol/Ingles,https://www.unizar.es
+Grado en Ingenieria Biomedica,Universidad del Pais Vasco,Publica,Bilbao,Pais Vasco,Presencial,4,240,Ingenieria y Arquitectura,13.9,242,Espanol/Ingles,https://www.ehu.eus
+Grado en Ingenieria de Datos,Universidad Politecnica de Madrid,Publica,Madrid,Madrid,Presencial,4,240,Ingenieria y Arquitectura,12.8,235,Espanol,https://www.upm.es
+Grado en Ingenieria de Datos,Universidad Politecnica de Cataluna,Publica,Barcelona,Cataluna,Presencial,4,240,Ingenieria y Arquitectura,13.4,235,Espanol/Ingles,https://www.upc.edu
+Grado en Ingenieria de Datos,Universidad Politecnica de Valencia,Publica,Valencia,Comunidad Valenciana,Presencial,4,240,Ingenieria y Arquitectura,12.6,235,Espanol/Ingles,https://www.upv.es
+Grado en Ingenieria de Datos,Universidad de Sevilla,Publica,Sevilla,Andalucia,Presencial,4,240,Ingenieria y Arquitectura,12.9,235,Espanol,https://www.us.es
+Grado en Ingenieria de Datos,Universidad de Zaragoza,Publica,Zaragoza,Aragon,Presencial,4,240,Ingenieria y Arquitectura,13.8,235,Espanol/Ingles,https://www.unizar.es
+Grado en Ingenieria de Datos,Universidad del Pais Vasco,Publica,Bilbao,Pais Vasco,Presencial,4,240,Ingenieria y Arquitectura,13.0,235,Espanol/Ingles,https://www.ehu.eus
+Grado en Ingenieria del Software,Universidad Politecnica de Madrid,Publica,Madrid,Madrid,Presencial,4,240,Ingenieria y Arquitectura,12.8,160,Espanol,https://www.upm.es
+Grado en Ingenieria del Software,Universidad Politecnica de Cataluna,Publica,Barcelona,Cataluna,Presencial,4,240,Ingenieria y Arquitectura,13.5,160,Espanol/Ingles,https://www.upc.edu
+Grado en Ingenieria del Software,Universidad Politecnica de Valencia,Publica,Valencia,Comunidad Valenciana,Presencial,4,240,Ingenieria y Arquitectura,12.3,160,Espanol/Ingles,https://www.upv.es
+Grado en Ingenieria del Software,Universidad de Sevilla,Publica,Sevilla,Andalucia,Presencial,4,240,Ingenieria y Arquitectura,13.3,160,Espanol,https://www.us.es
+Grado en Ingenieria del Software,Universidad de Zaragoza,Publica,Zaragoza,Aragon,Presencial,4,240,Ingenieria y Arquitectura,12.2,160,Espanol/Ingles,https://www.unizar.es
+Grado en Ingenieria del Software,Universidad del Pais Vasco,Publica,Bilbao,Pais Vasco,Presencial,4,240,Ingenieria y Arquitectura,12.5,160,Espanol/Ingles,https://www.ehu.eus
+Grado en Ingenieria de Computadores,Universidad Politecnica de Madrid,Publica,Madrid,Madrid,Presencial,4,240,Ingenieria y Arquitectura,12.3,236,Espanol,https://www.upm.es
+Grado en Ingenieria de Computadores,Universidad Politecnica de Cataluna,Publica,Barcelona,Cataluna,Presencial,4,240,Ingenieria y Arquitectura,12.6,236,Espanol/Ingles,https://www.upc.edu
+Grado en Ingenieria de Computadores,Universidad Politecnica de Valencia,Publica,Valencia,Comunidad Valenciana,Presencial,4,240,Ingenieria y Arquitectura,11.6,236,Espanol/Ingles,https://www.upv.es
+Grado en Ingenieria de Computadores,Universidad de Sevilla,Publica,Sevilla,Andalucia,Presencial,4,240,Ingenieria y Arquitectura,11.8,236,Espanol,https://www.us.es
+Grado en Ingenieria de Computadores,Universidad de Zaragoza,Publica,Zaragoza,Aragon,Presencial,4,240,Ingenieria y Arquitectura,13.1,236,Espanol/Ingles,https://www.unizar.es
+Grado en Ingenieria de Computadores,Universidad del Pais Vasco,Publica,Bilbao,Pais Vasco,Presencial,4,240,Ingenieria y Arquitectura,12.7,236,Espanol/Ingles,https://www.ehu.eus
+Grado en Enfermeria,Universidad Complutense de Madrid,Publica,Madrid,Madrid,Presencial,4,240,Ciencias de la Salud,11.8,82,Espanol,https://www.ucm.es
+Grado en Enfermeria,Universidad de Barcelona,Publica,Barcelona,Cataluna,Presencial,4,240,Ciencias de la Salud,12.1,82,Espanol,https://www.ub.edu
+Grado en Enfermeria,Universidad de Valencia,Publica,Valencia,Comunidad Valenciana,Presencial,4,240,Ciencias de la Salud,11.5,82,Espanol,https://www.uv.es
+Grado en Enfermeria,Universidad de Granada,Publica,Granada,Andalucia,Presencial,4,240,Ciencias de la Salud,12.0,82,Espanol,https://www.ugr.es
+Grado en Enfermeria,Universidad de Salamanca,Publica,Salamanca,Castilla y Leon,Presencial,4,240,Ciencias de la Salud,11.4,82,Espanol,https://www.usal.es
+Grado en Fisioterapia,Universidad Complutense de Madrid,Publica,Madrid,Madrid,Presencial,4,240,Ciencias de la Salud,12.4,97,Espanol,https://www.ucm.es
+Grado en Fisioterapia,Universidad de Barcelona,Publica,Barcelona,Cataluna,Presencial,4,240,Ciencias de la Salud,12.4,97,Espanol,https://www.ub.edu
+Grado en Fisioterapia,Universidad de Granada,Publica,Granada,Andalucia,Presencial,4,240,Ciencias de la Salud,12.4,97,Espanol,https://www.ugr.es
+Grado en Fisioterapia,Universidad de Salamanca,Publica,Salamanca,Castilla y Leon,Presencial,4,240,Ciencias de la Salud,13.1,97,Espanol,https://www.usal.es
+Grado en Farmacia,Universidad de Valencia,Publica,Valencia,Comunidad Valenciana,Presencial,5,300,Ciencias de la Salud,11.3,124,Espanol,https://www.uv.es
+Grado en Farmacia,Universidad de Granada,Publica,Granada,Andalucia,Presencial,5,300,Ciencias de la Salud,12.1,124,Espanol,https://www.ugr.es
+Grado en Farmacia,Universidad de Salamanca,Publica,Salamanca,Castilla y Leon,Presencial,5,300,Ciencias de la Salud,12.2,124,Espanol,https://www.usal.es
+Grado en Odontologia,Universidad Complutense de Madrid,Publica,Madrid,Madrid,Presencial,5,300,Ciencias de la Salud,13.2,141,Espanol,https://www.ucm.es
+Grado en Odontologia,Universidad de Barcelona,Publica,Barcelona,Cataluna,Presencial,5,300,Ciencias de la Salud,13.2,141,Espanol,https://www.ub.edu
+Grado en Odontologia,Universidad de Valencia,Publica,Valencia,Comunidad Valenciana,Presencial,5,300,Ciencias de la Salud,13.2,141,Espanol,https://www.uv.es
+Grado en Odontologia,Universidad de Granada,Publica,Granada,Andalucia,Presencial,5,300,Ciencias de la Salud,12.7,141,Espanol,https://www.ugr.es
+Grado en Odontologia,Universidad de Salamanca,Publica,Salamanca,Castilla y Leon,Presencial,5,300,Ciencias de la Salud,13.1,141,Espanol,https://www.usal.es
+Grado en Veterinaria,Universidad de Barcelona,Publica,Barcelona,Cataluna,Presencial,5,300,Ciencias de la Salud,12.0,83,Espanol,https://www.ub.edu
+Grado en Veterinaria,Universidad de Valencia,Publica,Valencia,Comunidad Valenciana,Presencial,5,300,Ciencias de la Salud,12.6,83,Espanol,https://www.uv.es
+Grado en Veterinaria,Universidad de Granada,Publica,Granada,Andalucia,Presencial,5,300,Ciencias de la Salud,13.3,83,Espanol,https://www.ugr.es
+Grado en Veterinaria,Universidad de Salamanca,Publica,Salamanca,Castilla y Leon,Presencial,5,300,Ciencias de la Salud,13.0,83,Espanol,https://www.usal.es
+Grado en Nutricion y Dietetica,Universidad Complutense de Madrid,Publica,Madrid,Madrid,Presencial,4,240,Ciencias de la Salud,11.9,101,Espanol,https://www.ucm.es
+Grado en Nutricion y Dietetica,Universidad de Barcelona,Publica,Barcelona,Cataluna,Presencial,4,240,Ciencias de la Salud,11.4,101,Espanol,https://www.ub.edu
+Grado en Nutricion y Dietetica,Universidad de Valencia,Publica,Valencia,Comunidad Valenciana,Presencial,4,240,Ciencias de la Salud,10.7,101,Espanol,https://www.uv.es
+Grado en Nutricion y Dietetica,Universidad de Granada,Publica,Granada,Andalucia,Presencial,4,240,Ciencias de la Salud,11.3,101,Espanol,https://www.ugr.es
+Grado en Nutricion y Dietetica,Universidad de Salamanca,Publica,Salamanca,Castilla y Leon,Presencial,4,240,Ciencias de la Salud,11.8,101,Espanol,https://www.usal.es
+Grado en Terapia Ocupacional,Universidad Complutense de Madrid,Publica,Madrid,Madrid,Presencial,4,240,Ciencias de la Salud,10.5,117,Espanol,https://www.ucm.es
+Grado en Terapia Ocupacional,Universidad de Barcelona,Publica,Barcelona,Cataluna,Presencial,4,240,Ciencias de la Salud,11.0,117,Espanol,https://www.ub.edu
+Grado en Terapia Ocupacional,Universidad de Valencia,Publica,Valencia,Comunidad Valenciana,Presencial,4,240,Ciencias de la Salud,11.2,117,Espanol,https://www.uv.es
+Grado en Terapia Ocupacional,Universidad de Granada,Publica,Granada,Andalucia,Presencial,4,240,Ciencias de la Salud,10.9,117,Espanol,https://www.ugr.es
+Grado en Terapia Ocupacional,Universidad de Salamanca,Publica,Salamanca,Castilla y Leon,Presencial,4,240,Ciencias de la Salud,10.6,117,Espanol,https://www.usal.es
+Grado en Logopedia,Universidad Complutense de Madrid,Publica,Madrid,Madrid,Presencial,4,240,Ciencias de la Salud,11.6,146,Espanol,https://www.ucm.es
+Grado en Logopedia,Universidad de Barcelona,Publica,Barcelona,Cataluna,Presencial,4,240,Ciencias de la Salud,11.3,146,Espanol,https://www.ub.edu
+Grado en Logopedia,Universidad de Valencia,Publica,Valencia,Comunidad Valenciana,Presencial,4,240,Ciencias de la Salud,10.7,146,Espanol,https://www.uv.es
+Grado en Logopedia,Universidad de Granada,Publica,Granada,Andalucia,Presencial,4,240,Ciencias de la Salud,10.5,146,Espanol,https://www.ugr.es
+Grado en Logopedia,Universidad de Salamanca,Publica,Salamanca,Castilla y Leon,Presencial,4,240,Ciencias de la Salud,11.1,146,Espanol,https://www.usal.es
+Grado en Sociologia,Universidad Carlos III de Madrid,Publica,Getafe,Madrid,Presencial,4,240,Ciencias Sociales y Juridicas,8.9,248,Espanol/Ingles,https://www.uc3m.es
+Grado en Sociologia,Universidad Pompeu Fabra,Publica,Barcelona,Cataluna,Presencial,4,240,Ciencias Sociales y Juridicas,9.8,248,Espanol/Ingles,https://www.upf.edu
+Grado en Sociologia,Universidad Autonoma de Barcelona,Publica,Barcelona,Cataluna,Presencial,4,240,Ciencias Sociales y Juridicas,8.9,248,Espanol/Ingles,https://www.uab.cat
+Grado en Sociologia,Universidad de Alicante,Publica,Alicante,Comunidad Valenciana,Presencial,4,240,Ciencias Sociales y Juridicas,9.7,248,Espanol/Ingles,https://www.ua.es
+Grado en Ciencias Politicas,Universidad Carlos III de Madrid,Publica,Getafe,Madrid,Presencial,4,240,Ciencias Sociales y Juridicas,9.7,220,Espanol/Ingles,https://www.uc3m.es
+Grado en Ciencias Politicas,Universidad Pompeu Fabra,Publica,Barcelona,Cataluna,Presencial,4,240,Ciencias Sociales y Juridicas,10.0,220,Espanol/Ingles,https://www.upf.edu
+Grado en Ciencias Politicas,Universidad Autonoma de Barcelona,Publica,Barcelona,Cataluna,Presencial,4,240,Ciencias Sociales y Juridicas,9.7,220,Espanol/Ingles,https://www.uab.cat
+Grado en Ciencias Politicas,Universidad de Alicante,Publica,Alicante,Comunidad Valenciana,Presencial,4,240,Ciencias Sociales y Juridicas,10.2,220,Espanol/Ingles,https://www.ua.es
+Grado en Trabajo Social,Universidad Carlos III de Madrid,Publica,Getafe,Madrid,Presencial,4,240,Ciencias Sociales y Juridicas,8.8,200,Espanol/Ingles,https://www.uc3m.es
+Grado en Trabajo Social,Universidad Pompeu Fabra,Publica,Barcelona,Cataluna,Presencial,4,240,Ciencias Sociales y Juridicas,7.8,200,Espanol/Ingles,https://www.upf.edu
+Grado en Trabajo Social,Universidad Autonoma de Barcelona,Publica,Barcelona,Cataluna,Presencial,4,240,Ciencias Sociales y Juridicas,7.9,200,Espanol/Ingles,https://www.uab.cat
+Grado en Trabajo Social,Universidad de Alicante,Publica,Alicante,Comunidad Valenciana,Presencial,4,240,Ciencias Sociales y Juridicas,8.3,200,Espanol/Ingles,https://www.ua.es
+Grado en Relaciones Internacionales,Universidad Carlos III de Madrid,Publica,Getafe,Madrid,Presencial,4,240,Ciencias Sociales y Juridicas,11.4,282,Espanol/Ingles,https://www.uc3m.es
+Grado en Relaciones Internacionales,Universidad Pompeu Fabra,Publica,Barcelona,Cataluna,Presencial,4,240,Ciencias Sociales y Juridicas,10.8,282,Espanol/Ingles,https://www.upf.edu
+Grado en Relaciones Internacionales,Universidad Autonoma de Barcelona,Publica,Barcelona,Cataluna,Presencial,4,240,Ciencias Sociales y Juridicas,10.6,282,Espanol/Ingles,https://www.uab.cat
+Grado en Relaciones Internacionales,Universidad de Alicante,Publica,Alicante,Comunidad Valenciana,Presencial,4,240,Ciencias Sociales y Juridicas,11.0,282,Espanol/Ingles,https://www.ua.es
+Grado en Comunicacion Audiovisual,Universidad Carlos III de Madrid,Publica,Getafe,Madrid,Presencial,4,240,Ciencias Sociales y Juridicas,11.3,294,Espanol/Ingles,https://www.uc3m.es
+Grado en Comunicacion Audiovisual,Universidad Pompeu Fabra,Publica,Barcelona,Cataluna,Presencial,4,240,Ciencias Sociales y Juridicas,12.0,294,Espanol/Ingles,https://www.upf.edu
+Grado en Comunicacion Audiovisual,Universidad Autonoma de Barcelona,Publica,Barcelona,Cataluna,Presencial,4,240,Ciencias Sociales y Juridicas,11.3,294,Espanol/Ingles,https://www.uab.cat
+Grado en Comunicacion Audiovisual,Universidad de Alicante,Publica,Alicante,Comunidad Valenciana,Presencial,4,240,Ciencias Sociales y Juridicas,11.1,294,Espanol/Ingles,https://www.ua.es
+Grado en Publicidad y RR.PP.,Universidad Carlos III de Madrid,Publica,Getafe,Madrid,Presencial,4,240,Ciencias Sociales y Juridicas,10.5,343,Espanol/Ingles,https://www.uc3m.es
+Grado en Publicidad y RR.PP.,Universidad Pompeu Fabra,Publica,Barcelona,Cataluna,Presencial,4,240,Ciencias Sociales y Juridicas,10.5,343,Espanol/Ingles,https://www.upf.edu
+Grado en Publicidad y RR.PP.,Universidad Autonoma de Barcelona,Publica,Barcelona,Cataluna,Presencial,4,240,Ciencias Sociales y Juridicas,10.3,343,Espanol/Ingles,https://www.uab.cat
+Grado en Publicidad y RR.PP.,Universidad de Alicante,Publica,Alicante,Comunidad Valenciana,Presencial,4,240,Ciencias Sociales y Juridicas,10.7,343,Espanol/Ingles,https://www.ua.es
+Grado en Marketing,Universidad Carlos III de Madrid,Publica,Getafe,Madrid,Presencial,4,240,Ciencias Sociales y Juridicas,10.1,287,Espanol/Ingles,https://www.uc3m.es
+Grado en Marketing,Universidad Pompeu Fabra,Publica,Barcelona,Cataluna,Presencial,4,240,Ciencias Sociales y Juridicas,10.0,287,Espanol/Ingles,https://www.upf.edu
+Grado en Marketing,Universidad Autonoma de Barcelona,Publica,Barcelona,Cataluna,Presencial,4,240,Ciencias Sociales y Juridicas,9.0,287,Espanol/Ingles,https://www.uab.cat
+Grado en Marketing,Universidad de Alicante,Publica,Alicante,Comunidad Valenciana,Presencial,4,240,Ciencias Sociales y Juridicas,10.3,287,Espanol/Ingles,https://www.ua.es
+Grado en Turismo,Universidad Carlos III de Madrid,Publica,Getafe,Madrid,Presencial,4,240,Ciencias Sociales y Juridicas,8.3,238,Espanol/Ingles,https://www.uc3m.es
+Grado en Turismo,Universidad Pompeu Fabra,Publica,Barcelona,Cataluna,Presencial,4,240,Ciencias Sociales y Juridicas,8.3,238,Espanol/Ingles,https://www.upf.edu
+Grado en Turismo,Universidad Autonoma de Barcelona,Publica,Barcelona,Cataluna,Presencial,4,240,Ciencias Sociales y Juridicas,8.1,238,Espanol/Ingles,https://www.uab.cat
+Grado en Turismo,Universidad de Alicante,Publica,Alicante,Comunidad Valenciana,Presencial,4,240,Ciencias Sociales y Juridicas,8.4,238,Espanol/Ingles,https://www.ua.es
+Grado en Finanzas,Universidad Carlos III de Madrid,Publica,Getafe,Madrid,Presencial,4,240,Ciencias Sociales y Juridicas,10.4,235,Espanol/Ingles,https://www.uc3m.es
+Grado en Finanzas,Universidad Pompeu Fabra,Publica,Barcelona,Cataluna,Presencial,4,240,Ciencias Sociales y Juridicas,10.5,235,Espanol/Ingles,https://www.upf.edu
+Grado en Finanzas,Universidad Autonoma de Barcelona,Publica,Barcelona,Cataluna,Presencial,4,240,Ciencias Sociales y Juridicas,10.7,235,Espanol/Ingles,https://www.uab.cat
+Grado en Finanzas,Universidad de Alicante,Publica,Alicante,Comunidad Valenciana,Presencial,4,240,Ciencias Sociales y Juridicas,10.5,235,Espanol/Ingles,https://www.ua.es
