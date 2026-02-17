@@ -423,6 +423,12 @@ st.sidebar.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
+# Búsqueda por palabras clave
+busqueda = st.sidebar.text_input(
+    "Buscar",
+    placeholder="Ej: informática, Madrid, Pública..."
+)
+
 # Filtro por nombre de carrera
 carreras_unicas = sorted(df['nombre_carrera'].unique())
 carrera_seleccionada = st.sidebar.selectbox(
@@ -511,6 +517,16 @@ if st.sidebar.button("🔄 Actualizar Datos", width='stretch'):
 
 # Aplicar filtros
 df_filtrado = df.copy()
+
+if busqueda.strip():
+    termino = busqueda.strip().lower()
+    df_filtrado = df_filtrado[
+        df_filtrado['nombre_carrera'].str.lower().str.contains(termino, na=False) |
+        df_filtrado['universidad'].str.lower().str.contains(termino, na=False) |
+        df_filtrado['ciudad'].str.lower().str.contains(termino, na=False) |
+        df_filtrado['comunidad_autonoma'].str.lower().str.contains(termino, na=False) |
+        df_filtrado['rama_conocimiento'].str.lower().str.contains(termino, na=False)
+    ]
 
 if carrera_seleccionada != 'Todas':
     df_filtrado = df_filtrado[df_filtrado['nombre_carrera'] == carrera_seleccionada]
