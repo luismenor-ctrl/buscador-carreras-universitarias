@@ -8,8 +8,8 @@ Aplicación web minimalista para buscar y comparar carreras universitarias en Es
 
 ## ✨ Características
 
-- 📊 **198 carreras** de universidades públicas y privadas
-- 🔍 **Filtros avanzados** por carrera, comunidad, tipo, modalidad y nota de corte
+- 📊 **+4.600 entradas** — 89 carreras × 62 universidades públicas y privadas
+- 🔍 **Filtros avanzados** por carrera, comunidad, rama, tipo, modalidad y nota de corte
 - ⚖️ **Comparador** de hasta 5 universidades
 - 📈 **Gráficos interactivos** con Plotly
 - 📱 **Mobile-first** optimizado para móviles

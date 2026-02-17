@@ -364,7 +364,7 @@ def cargar_datos():
         verificar_y_actualizar_datos()
 
         # Cargar datos
-        df = pd.read_csv('carreras_universidades.csv')
+        df = pd.read_csv('carreras_universidades.csv', encoding='utf-8')
         return df
     except FileNotFoundError:
         st.error("⚠️ No se encontró el archivo de datos. Por favor, verifica que 'carreras_universidades.csv' esté en el directorio correcto.")
@@ -447,10 +447,19 @@ tipo_universidad = st.sidebar.radio(
     index=0
 )
 
+# Filtro por rama de conocimiento
+ramas = sorted(df['rama_conocimiento'].unique())
+rama_seleccionada = st.sidebar.multiselect(
+    "Rama de conocimiento",
+    options=ramas,
+    default=[],
+    placeholder="Todas las ramas"
+)
+
 # Filtro por modalidad
 modalidad = st.sidebar.radio(
     "Modalidad",
-    options=['Todas', 'Presencial', 'A distancia', 'Semipresencial'],
+    options=['Todas', 'Presencial', 'Online'],
     index=0
 )
 
@@ -508,6 +517,9 @@ if carrera_seleccionada != 'Todas':
 
 if comunidad_seleccionada:
     df_filtrado = df_filtrado[df_filtrado['comunidad_autonoma'].isin(comunidad_seleccionada)]
+
+if rama_seleccionada:
+    df_filtrado = df_filtrado[df_filtrado['rama_conocimiento'].isin(rama_seleccionada)]
 
 if tipo_universidad != 'Todas':
     df_filtrado = df_filtrado[df_filtrado['tipo_universidad'] == tipo_universidad]
@@ -577,7 +589,7 @@ with tab1:
                 options=['Universidad', 'Nota de corte', 'Plazas', 'Ciudad'],
                 help="Selecciona el criterio de ordenamiento"
             )
-        
+
         # Ordenar dataframe
         orden_map = {
             'Universidad': 'universidad',
@@ -585,10 +597,25 @@ with tab1:
             'Plazas': 'plazas',
             'Ciudad': 'ciudad'
         }
-        df_ordenado = df_filtrado.sort_values(by=orden_map[ordenar_por], ascending=False)
-        
+        df_ordenado = df_filtrado.sort_values(by=orden_map[ordenar_por], ascending=False).reset_index(drop=True)
+
+        # Paginación
+        ITEMS_POR_PAGINA = 20
+        total_resultados = len(df_ordenado)
+        total_paginas = max(1, (total_resultados + ITEMS_POR_PAGINA - 1) // ITEMS_POR_PAGINA)
+
+        st.caption(f"{total_resultados} resultados encontrados")
+
+        pagina_actual = st.number_input(
+            f"Página (1–{total_paginas})",
+            min_value=1, max_value=total_paginas, value=1, step=1
+        )
+        inicio = (pagina_actual - 1) * ITEMS_POR_PAGINA
+        fin = min(inicio + ITEMS_POR_PAGINA, total_resultados)
+        df_pagina = df_ordenado.iloc[inicio:fin]
+
         # Mostrar resultados como tarjetas minimalistas
-        for idx, row in df_ordenado.iterrows():
+        for idx, row in df_pagina.iterrows():
             # Estilo de badge según tipo
             tipo_class = 'public' if row['tipo_universidad'] == 'Pública' else 'private'
             tipo_bg = '#D1FAE5' if row['tipo_universidad'] == 'Pública' else '#FEF3C7'
