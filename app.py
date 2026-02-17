@@ -40,9 +40,28 @@ st.markdown("""
         -webkit-font-smoothing: antialiased;
     }
 
-    /* Ocultar chrome de Streamlit */
-    #MainMenu, footer, header { visibility: hidden; }
-    [data-testid="collapsedControl"] { display: block !important; }
+    /* Ocultar chrome de Streamlit pero mantener botón de sidebar */
+    #MainMenu { visibility: hidden; }
+    footer { visibility: hidden; }
+    /* Ocultar título y decoración del header pero NO el botón de sidebar */
+    header [data-testid="stToolbar"] { visibility: hidden; }
+    header { background: transparent !important; }
+    /* Asegurar que el botón de abrir/cerrar sidebar es visible y accesible */
+    [data-testid="collapsedControl"] {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        z-index: 999 !important;
+        width: 44px !important;
+        height: 44px !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    /* Botón de cerrar sidebar dentro de la propia sidebar */
+    [data-testid="stSidebarCollapseButton"] {
+        display: flex !important;
+        visibility: visible !important;
+    }
 
     /* Contenedor principal */
     .stApp { background: var(--color-bg); }
@@ -353,8 +372,7 @@ status_color = "#10B981" if update_status['status'] == 'Actualizado' else "#F59E
 st.markdown(f"""
     <div class="header-container">
         <div class="header-content">
-            <i data-lucide="graduation-cap" class="header-icon"></i>
-            <h1 class="header-title">Buscador de Carreras Universitarias</h1>
+            <h1 class="header-title">🎓 Buscador de Carreras Universitarias</h1>
         </div>
         <p class="header-subtitle">
             Encuentra la carrera y universidad perfecta para tu futuro
@@ -362,10 +380,12 @@ st.markdown(f"""
         <div class="header-badges">
             <span class="badge badge-country">España</span>
             <span class="badge badge-updated" title="Última actualización: {update_status['last_update']}">
-                <i data-lucide="{status_icon}" style="width:14px;height:14px;color:{status_color};"></i>
-                {update_status['records_count']} carreras | {update_status['status']}
+                {update_status['records_count']} carreras
             </span>
         </div>
+        <p style="text-align:center; font-size:0.75rem; color:#737373; margin-top:0.75rem;">
+            ☰ Toca el botón <strong>arriba a la izquierda</strong> para abrir los filtros
+        </p>
     </div>
 """, unsafe_allow_html=True)
 
