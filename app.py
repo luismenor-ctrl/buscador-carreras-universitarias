@@ -40,24 +40,30 @@ st.markdown("""
         -webkit-font-smoothing: antialiased;
     }
 
-    /* Ocultar chrome de Streamlit pero mantener botón de sidebar */
+    /* Ocultar chrome de Streamlit */
     #MainMenu { visibility: hidden; }
     footer { visibility: hidden; }
-    /* Ocultar título y decoración del header pero NO el botón de sidebar */
-    header [data-testid="stToolbar"] { visibility: hidden; }
-    header { background: transparent !important; }
-    /* Asegurar que el botón de abrir/cerrar sidebar es visible y accesible */
+    /* Ocultar sólo el toolbar (deploy, share...) pero NO el botón de sidebar */
+    [data-testid="stToolbar"] { display: none; }
+    /* Botón ☰ de abrir sidebar — visible siempre */
+    [data-testid="stSidebarCollapsedControl"],
     [data-testid="collapsedControl"] {
         display: flex !important;
         visibility: visible !important;
-        opacity: 1 !important;
-        z-index: 999 !important;
+        position: fixed !important;
+        top: 0.75rem !important;
+        left: 0.75rem !important;
+        z-index: 9999 !important;
+        background: white !important;
+        border: 1px solid #E5E5E5 !important;
+        border-radius: 0.5rem !important;
         width: 44px !important;
         height: 44px !important;
         align-items: center !important;
         justify-content: center !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
     }
-    /* Botón de cerrar sidebar dentro de la propia sidebar */
+    /* Botón de cerrar dentro de la sidebar */
     [data-testid="stSidebarCollapseButton"] {
         display: flex !important;
         visibility: visible !important;
@@ -67,7 +73,7 @@ st.markdown("""
     .stApp { background: var(--color-bg); }
 
     .main .block-container {
-        padding: 0.75rem 1rem 2rem 1rem;
+        padding: 3.5rem 1rem 2rem 1rem;
         max-width: 800px;
         background: var(--color-bg);
     }
@@ -133,21 +139,34 @@ st.markdown("""
         border-bottom-color: var(--color-accent) !important;
     }
 
-    /* Expanders */
-    .streamlit-expanderHeader {
-        background: var(--color-bg) !important;
+    /* Expanders — selectores para Streamlit 1.54+ */
+    [data-testid="stExpander"] {
         border: 1px solid var(--color-border) !important;
         border-radius: var(--radius-lg) !important;
+        overflow: hidden;
+        margin-bottom: 0.5rem;
+    }
+    [data-testid="stExpander"] summary,
+    [data-testid="stExpanderToggleIcon"] ~ div,
+    .streamlit-expanderHeader {
+        background: var(--color-bg) !important;
         font-weight: 600 !important;
         font-size: 0.9rem !important;
         color: var(--color-text-primary) !important;
         padding: 0.875rem 1rem !important;
+        border: none !important;
     }
-    .streamlit-expanderContent {
-        border: 1px solid var(--color-border) !important;
-        border-top: none !important;
-        border-radius: 0 0 var(--radius-lg) var(--radius-lg) !important;
-        padding: 1rem !important;
+    [data-testid="stExpander"] details summary {
+        list-style: none;
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: var(--color-text-primary);
+        padding: 0.875rem 1rem;
+        cursor: pointer;
+    }
+    [data-testid="stExpanderDetails"] {
+        padding: 0.75rem 1rem 1rem 1rem !important;
+        border-top: 1px solid var(--color-border) !important;
     }
 
     /* Botones */
@@ -581,7 +600,7 @@ with tab1:
             tipo_color = '#065F46' if row['tipo_universidad'] == 'Pública' else '#92400E'
 
             with st.expander(
-                f"🎓 {row['nombre_carrera']} — {row['universidad']}",
+                f"{row['nombre_carrera']} — {row['universidad']}",
                 expanded=False
             ):
                 # Badges limpios
