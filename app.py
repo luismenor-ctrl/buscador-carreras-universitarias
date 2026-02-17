@@ -9,27 +9,19 @@ import logging
 st.set_page_config(
     page_title="Buscador de Carreras Universitarias España",
     page_icon="🎓",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="centered",
+    initial_sidebar_state="collapsed"
 )
 
 # CSS minimalista profesional - Mobile-First
 st.markdown("""
-<script src="https://unpkg.com/lucide@latest"></script>
 <style>
-    /* ============================================
-       DISEÑO MINIMALISTA - MOBILE FIRST
-       ============================================ */
-
-    /* Importar fuente Inter */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-    /* Variables CSS - Sistema de diseño */
     :root {
         --color-bg: #FFFFFF;
         --color-surface: #FAFAFA;
         --color-border: #E5E5E5;
-        --color-border-strong: #D4D4D4;
         --color-text-primary: #171717;
         --color-text-secondary: #737373;
         --color-text-tertiary: #A3A3A3;
@@ -39,129 +31,72 @@ st.markdown("""
         --color-success: #10B981;
         --color-success-light: #D1FAE5;
         --color-warning: #F59E0B;
-        --color-warning-light: #FEF3C7;
-        --radius-sm: 0.375rem;
-        --radius-md: 0.5rem;
         --radius-lg: 0.75rem;
-        --radius-xl: 1rem;
-        --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+        --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.05);
     }
 
-    /* Reset y base */
     * {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
         -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
     }
 
-    /* Ocultar elementos de Streamlit */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
+    /* Ocultar chrome de Streamlit */
+    #MainMenu, footer, header { visibility: hidden; }
+    [data-testid="collapsedControl"] { display: block !important; }
 
-    /* Fondo limpio */
-    .stApp {
-        background: var(--color-bg);
-    }
+    /* Contenedor principal */
+    .stApp { background: var(--color-bg); }
 
     .main .block-container {
-        padding: 1rem;
-        max-width: 1200px;
+        padding: 0.75rem 1rem 2rem 1rem;
+        max-width: 800px;
         background: var(--color-bg);
     }
 
-    @media (min-width: 1025px) {
-        .main .block-container {
-            padding: 2rem;
-        }
-    }
-
-    /* ============================================
-       SIDEBAR MINIMALISTA
-       ============================================ */
+    /* Sidebar */
     [data-testid="stSidebar"] {
         background: var(--color-surface);
         border-right: 1px solid var(--color-border);
-        padding: 1.5rem 1rem;
     }
-
-    [data-testid="stSidebar"] * {
-        color: var(--color-text-primary) !important;
-    }
-
-    [data-testid="stSidebar"] .stSelectbox label,
-    [data-testid="stSidebar"] .stMultiSelect label,
-    [data-testid="stSidebar"] .stRadio label,
-    [data-testid="stSidebar"] .stSlider label {
+    [data-testid="stSidebar"] * { color: var(--color-text-primary) !important; }
+    [data-testid="stSidebar"] label {
         font-weight: 600 !important;
-        font-size: 0.875rem !important;
-        margin-bottom: 0.5rem !important;
+        font-size: 0.8rem !important;
         text-transform: uppercase;
-        letter-spacing: 0.025em;
+        letter-spacing: 0.04em;
     }
 
-    @media (max-width: 1024px) {
-        [data-testid="stSidebar"] {
-            display: none;
-        }
+    /* Métricas */
+    div[data-testid="metric-container"] {
+        background: var(--color-bg);
+        padding: 0.875rem;
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--color-border);
     }
-
-    /* ============================================
-       MÉTRICAS MINIMALISTAS
-       ============================================ */
     [data-testid="stMetricValue"] {
-        font-size: 1.875rem;
+        font-size: 1.5rem !important;
         font-weight: 700;
         color: var(--color-text-primary);
     }
-
     [data-testid="stMetricLabel"] {
-        font-size: 0.75rem;
+        font-size: 0.7rem !important;
         font-weight: 600;
         color: var(--color-text-secondary);
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.04em;
     }
 
-    div[data-testid="metric-container"] {
-        background: var(--color-bg);
-        padding: 1.5rem;
-        border-radius: var(--radius-lg);
-        border: 1px solid var(--color-border);
-        transition: border-color 0.2s ease;
-    }
-
-    div[data-testid="metric-container"]:hover {
-        border-color: var(--color-accent);
-    }
-
-    @media (max-width: 640px) {
-        div[data-testid="metric-container"] {
-            padding: 1rem;
-        }
-        [data-testid="stMetricValue"] {
-            font-size: 1.5rem;
-        }
-    }
-
-    /* ============================================
-       TABS MINIMALISTAS
-       ============================================ */
+    /* Tabs */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 0.5rem;
+        gap: 0;
         background: transparent;
         border-bottom: 1px solid var(--color-border);
-        padding: 0;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
         scrollbar-width: none;
+        flex-wrap: nowrap;
     }
-
-    .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar {
-        display: none;
-    }
-
+    .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar { display: none; }
     .stTabs [data-baseweb="tab"] {
         background: transparent;
         border: none;
@@ -169,159 +104,102 @@ st.markdown("""
         border-radius: 0;
         color: var(--color-text-secondary);
         font-weight: 500;
-        padding: 0.75rem 1rem;
-        transition: all 0.2s ease;
+        font-size: 0.875rem;
+        padding: 0.75rem 0.875rem;
+        white-space: nowrap;
     }
-
-    .stTabs [data-baseweb="tab"]:hover {
-        color: var(--color-text-primary);
-        background: transparent;
-    }
-
     .stTabs [aria-selected="true"] {
         color: var(--color-accent) !important;
         background: transparent !important;
-        border-bottom-color: var(--color-accent);
+        border-bottom-color: var(--color-accent) !important;
     }
 
-    @media (max-width: 640px) {
-        .stTabs [data-baseweb="tab"] {
-            min-width: 100px;
-            font-size: 0.875rem;
-        }
-    }
-
-    /* ============================================
-       EXPANDERS MINIMALISTAS
-       ============================================ */
+    /* Expanders */
     .streamlit-expanderHeader {
-        background: var(--color-bg);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-lg);
-        font-weight: 600;
-        font-size: 0.9375rem;
-        color: var(--color-text-primary);
-        padding: 1rem 1.25rem;
-        transition: all 0.2s ease;
+        background: var(--color-bg) !important;
+        border: 1px solid var(--color-border) !important;
+        border-radius: var(--radius-lg) !important;
+        font-weight: 600 !important;
+        font-size: 0.9rem !important;
+        color: var(--color-text-primary) !important;
+        padding: 0.875rem 1rem !important;
     }
-
-    .streamlit-expanderHeader:hover {
-        border-color: var(--color-accent);
-        background: var(--color-surface);
-    }
-
     .streamlit-expanderContent {
-        background: var(--color-bg);
-        border: 1px solid var(--color-border);
-        border-top: none;
-        border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-        padding: 1.5rem;
-        margin-top: -1px;
+        border: 1px solid var(--color-border) !important;
+        border-top: none !important;
+        border-radius: 0 0 var(--radius-lg) var(--radius-lg) !important;
+        padding: 1rem !important;
     }
 
-    @media (max-width: 640px) {
-        .streamlit-expanderHeader {
-            font-size: 0.875rem;
-            padding: 0.875rem 1rem;
-        }
-    }
-
-    /* ============================================
-       BOTONES MINIMALISTAS
-       ============================================ */
+    /* Botones */
     .stButton > button {
-        background: var(--color-accent);
-        color: white;
-        border: none;
-        border-radius: var(--radius-lg);
-        padding: 0.625rem 1.25rem;
-        font-weight: 500;
-        font-size: 0.875rem;
-        transition: background-color 0.2s ease;
-        box-shadow: none;
+        background: var(--color-accent) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: var(--radius-lg) !important;
+        padding: 0.625rem 1.25rem !important;
+        font-weight: 500 !important;
+        font-size: 0.875rem !important;
+        width: 100%;
+        min-height: 44px;
     }
+    .stButton > button:hover { background: var(--color-accent-dark) !important; }
 
-    .stButton > button:hover {
-        background: var(--color-accent-dark);
-    }
-
-    /* ============================================
-       FORMS MINIMALISTAS
-       ============================================ */
+    /* Selectbox y multiselect */
     .stSelectbox > div > div,
     .stMultiSelect > div > div {
-        border-color: var(--color-border);
-        border-radius: var(--radius-lg);
-        background: var(--color-bg);
+        border-color: var(--color-border) !important;
+        border-radius: var(--radius-lg) !important;
+        background: var(--color-bg) !important;
+        min-height: 44px;
     }
 
-    /* ============================================
-       COMPONENTES CUSTOM
-       ============================================ */
+    /* Radio buttons más grandes para touch */
+    .stRadio label { min-height: 36px; display: flex; align-items: center; }
 
     /* Header */
     .header-container {
-        padding: 1.5rem 0 1rem;
+        padding: 1.25rem 0 1rem;
         border-bottom: 1px solid var(--color-border);
+        margin-bottom: 1rem;
     }
-
-    .header-content {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.75rem;
-    }
-
-    .header-icon {
-        width: 2rem;
-        height: 2rem;
-        color: var(--color-accent);
-        stroke-width: 2;
-    }
-
     .header-title {
-        font-size: 1.875rem;
+        font-size: 1.5rem;
         font-weight: 700;
         color: var(--color-text-primary);
         margin: 0;
-        letter-spacing: -0.025em;
+        letter-spacing: -0.02em;
+        text-align: center;
     }
-
     .header-subtitle {
         text-align: center;
-        font-size: 1rem;
+        font-size: 0.875rem;
         color: var(--color-text-secondary);
-        font-weight: 400;
-        margin: 0.5rem 0 1rem;
-        line-height: 1.5;
+        margin: 0.375rem 0 0.75rem;
     }
-
     .header-badges {
         display: flex;
         justify-content: center;
-        gap: 0.5rem;
+        gap: 0.375rem;
         flex-wrap: wrap;
     }
-
     .badge {
         display: inline-flex;
         align-items: center;
-        gap: 0.375rem;
-        padding: 0.375rem 0.75rem;
+        gap: 0.25rem;
+        padding: 0.3rem 0.65rem;
         border-radius: 9999px;
-        font-size: 0.75rem;
+        font-size: 0.7rem;
         font-weight: 600;
         border: 1px solid var(--color-border);
         background: var(--color-surface);
         color: var(--color-text-primary);
     }
-
     .badge-country {
         background: var(--color-accent-light);
         color: var(--color-accent-dark);
         border-color: #93C5FD;
     }
-
     .badge-updated {
         background: var(--color-success-light);
         color: #065F46;
@@ -331,116 +209,53 @@ st.markdown("""
     /* Info boxes */
     .info-box {
         background: var(--color-surface);
-        padding: 1rem;
+        padding: 0.875rem;
         border-radius: var(--radius-lg);
         border-left: 3px solid var(--color-accent);
-        margin: 1rem 0;
-    }
-
-    .info-box.success {
-        border-left-color: var(--color-success);
-        background: #ECFDF5;
-    }
-
-    .info-box.warning {
-        border-left-color: var(--color-warning);
-        background: #FFFBEB;
+        margin: 0.75rem 0;
+        font-size: 0.875rem;
     }
 
     /* Footer */
     .footer-section {
         background: var(--color-surface);
         border-top: 1px solid var(--color-border);
-        padding: 2rem;
-        margin-top: 3rem;
+        padding: 1.5rem 1rem;
+        margin-top: 2rem;
         border-radius: var(--radius-lg);
     }
 
-    /* Enlaces */
-    a {
-        color: var(--color-accent);
-        text-decoration: none;
-        font-weight: 500;
-        transition: color 0.2s ease;
-    }
+    a { color: var(--color-accent); text-decoration: none; font-weight: 500; }
+    a:hover { color: var(--color-accent-dark); }
 
-    a:hover {
-        color: var(--color-accent-dark);
-    }
-
-    /* Dataframes */
     .stDataFrame {
         border: 1px solid var(--color-border);
         border-radius: var(--radius-lg);
         overflow: hidden;
     }
 
-    /* Alerts */
-    .stAlert {
-        background: var(--color-surface);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-lg);
-        padding: 1rem;
-    }
-
-    /* Divisores */
     hr {
-        margin: 2rem 0;
+        margin: 1.5rem 0;
         border: none;
         height: 1px;
         background: var(--color-border);
     }
 
-    /* Scrollbar minimalista */
-    ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-    }
-
-    ::-webkit-scrollbar-track {
-        background: var(--color-surface);
-    }
-
-    ::-webkit-scrollbar-thumb {
-        background: var(--color-border);
-        border-radius: 4px;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-        background: var(--color-text-tertiary);
-    }
-
-    /* ============================================
-       MEDIA QUERIES RESPONSIVE
-       ============================================ */
+    /* Columnas en móvil: apilar verticalmente */
     @media (max-width: 640px) {
-        .header-title {
-            font-size: 1.5rem;
+        .main .block-container {
+            padding: 0.5rem 0.75rem 2rem 0.75rem;
         }
-        .header-subtitle {
-            font-size: 0.875rem;
+        /* Forzar columnas de métricas a 2x2 */
+        [data-testid="column"] {
+            min-width: calc(50% - 0.5rem) !important;
+            flex: 0 0 calc(50% - 0.5rem) !important;
         }
-        .header-icon {
-            width: 1.5rem;
-            height: 1.5rem;
-        }
-        .footer-section {
-            padding: 1rem;
-        }
+        .header-title { font-size: 1.25rem; }
+        .streamlit-expanderHeader { font-size: 0.8rem !important; }
+        [data-testid="stMetricValue"] { font-size: 1.25rem !important; }
     }
 </style>
-
-<script>
-// Inicializar iconos Lucide
-document.addEventListener('DOMContentLoaded', () => {
-    lucide.createIcons();
-});
-
-// Re-inicializar en cambios de Streamlit
-window.addEventListener('streamlit:render', () => {
-    lucide.createIcons();
-});
-</script>
 """, unsafe_allow_html=True)
 
 # Función helper para iconos Lucide
