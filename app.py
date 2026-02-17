@@ -35,37 +35,33 @@ st.markdown("""
         --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.05);
     }
 
-    * {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+    /* Inter sólo en texto — NO en iconos de fuente (Material Symbols) */
+    body, p, h1, h2, h3, h4, h5, h6, div, label, button,
+    input, select, textarea, li, a, td, th {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         -webkit-font-smoothing: antialiased;
     }
 
     /* Ocultar chrome de Streamlit */
     #MainMenu { visibility: hidden; }
     footer { visibility: hidden; }
-    /* Ocultar sólo el toolbar (deploy, share...) pero NO el botón de sidebar */
-    [data-testid="stToolbar"] { display: none; }
-    /* Botón ☰ de abrir sidebar — visible siempre */
-    [data-testid="stSidebarCollapsedControl"],
-    [data-testid="collapsedControl"] {
-        display: flex !important;
-        visibility: visible !important;
-        position: fixed !important;
-        top: 0.75rem !important;
-        left: 0.75rem !important;
-        z-index: 9999 !important;
-        background: white !important;
-        border: 1px solid #E5E5E5 !important;
-        border-radius: 0.5rem !important;
-        width: 44px !important;
-        height: 44px !important;
-        align-items: center !important;
-        justify-content: center !important;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+
+    /* stToolbar visible pero fondo transparente — contiene el botón de sidebar */
+    [data-testid="stToolbar"] {
+        background: transparent !important;
+        box-shadow: none !important;
     }
-    /* Botón de cerrar dentro de la sidebar */
+    /* Ocultar botones de la derecha (deploy, share, menú) pero NO el de sidebar */
+    [data-testid="stToolbar"] .stAppToolbarActions,
+    [data-testid="stToolbar"] [data-testid="stDecoration"] { display: none !important; }
+
+    /* Botón ☰ para abrir sidebar — grande y fácil de tocar */
+    [data-testid="stExpandSidebarButton"] button {
+        min-width: 44px !important;
+        min-height: 44px !important;
+    }
+    /* Botón para cerrar sidebar */
     [data-testid="stSidebarCollapseButton"] {
-        display: flex !important;
         visibility: visible !important;
     }
 
