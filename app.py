@@ -153,6 +153,22 @@ st.markdown("""
     }
     .stButton > button:hover { background: var(--color-accent-dark) !important; }
 
+    /* Botón de búsqueda — más prominente */
+    [data-testid="stForm"] [data-testid="stFormSubmitButton"] > button {
+        background: var(--color-accent) !important;
+        font-size: 1.05rem !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.02em !important;
+        min-height: 54px !important;
+        border-radius: var(--radius-lg) !important;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35) !important;
+        transition: box-shadow 0.2s ease, background 0.2s ease !important;
+    }
+    [data-testid="stForm"] [data-testid="stFormSubmitButton"] > button:hover {
+        background: var(--color-accent-dark) !important;
+        box-shadow: 0 6px 16px rgba(59, 130, 246, 0.45) !important;
+    }
+
     /* Selectbox y multiselect */
     .stSelectbox > div > div,
     .stMultiSelect > div > div {
@@ -388,43 +404,15 @@ with st.form("busqueda_ruct"):
             options=univ_display,
         )
 
-    st.markdown("---")
-
-    col6, col7, col8 = st.columns(3)
-    with col6:
-        situacion_opts = {
-            "Solo activas": "A",
-            "Extinguidas": "T",
-            "A extinguir": "X",
-            "Todas": "",
-        }
-        situacion_sel = st.selectbox("Situación", options=list(situacion_opts.keys()))
-    with col7:
-        max_pag = st.number_input(
-            "Máx. páginas",
-            min_value=1,
-            max_value=500,
-            value=100,
-            step=10,
-            help="Cada página contiene ~25 resultados. 100 páginas ≈ 2.500 títulos.",
-        )
-    with col8:
-        timeout_seg = st.number_input(
-            "Timeout (s)",
-            min_value=5,
-            max_value=120,
-            value=30,
-            step=5,
-            help="Segundos de espera máxima por cada petición al servidor del RUCT.",
-        )
-
     st.markdown(
         '<p class="form-hint">Los campos vacíos no aplican filtro. '
         'La búsqueda por nombre no distingue mayúsculas/minúsculas.</p>',
         unsafe_allow_html=True,
     )
 
-    submitted = st.form_submit_button("Buscar en el RUCT", use_container_width=True)
+    submitted = st.form_submit_button(
+        "Buscar", use_container_width=True, type="primary"
+    )
 
 st.markdown("</div>", unsafe_allow_html=True)
 
@@ -434,7 +422,6 @@ if submitted:
     tipo_val = tipo_values.get(tipo_sel, "")
     rama_val = rama_values.get(rama_sel, "")
     univ_val = univ_values.get(univ_sel, "")
-    situ_val = situacion_opts.get(situacion_sel, "A")
 
     with st.spinner("Consultando el RUCT... esto puede tardar unos segundos."):
         df, warning = ruct_scraper.buscar_ruct(
@@ -444,10 +431,10 @@ if submitted:
             tipo=tipo_val,
             rama=rama_val,
             estado="P",
-            situacion=situ_val,
+            situacion="A",
             historico="N",
-            timeout=int(timeout_seg),
-            max_paginas=int(max_pag),
+            timeout=30,
+            max_paginas=200,
         )
 
     st.session_state["df_resultados"] = df
