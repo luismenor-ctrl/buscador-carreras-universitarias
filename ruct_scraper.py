@@ -10,6 +10,7 @@ títulos universitarios oficiales de España (Grado, Máster, Doctorado, etc.).
 import io
 import time
 import logging
+import unicodedata
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
@@ -63,6 +64,19 @@ SITUACIONES = {
     "T": "Titulación Extinguida",
     "X": "Titulación a Extinguir",
 }
+
+
+def _quitar_acentos(texto: str) -> str:
+    """
+    Elimina los diacríticos (acentos) de un texto.
+    Ej: 'Matemáticas' → 'Matematicas', 'Ingeniería' → 'Ingenieria'
+    El RUCT devuelve 0 resultados cuando la búsqueda contiene caracteres acentuados,
+    pero es insensible a acentos cuando recibe texto ASCII plano.
+    """
+    return "".join(
+        c for c in unicodedata.normalize("NFD", texto)
+        if unicodedata.category(c) != "Mn"
+    )
 
 
 def cargar_opciones_formulario(timeout: int = 20) -> dict:
@@ -159,7 +173,7 @@ def buscar_ruct(
     payload = {
         "consulta": "1",
         "codigoEstudio": codigo.strip(),
-        "descripcionEstudio": descripcion.strip(),
+        "descripcionEstudio": _quitar_acentos(descripcion.strip()),
         "codigoUniversidad": universidad,
         "codigoTipo": tipo,
         "codigoSubTipo": "",
