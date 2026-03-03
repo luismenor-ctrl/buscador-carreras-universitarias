@@ -299,6 +299,9 @@ st.markdown("""
     a { color: var(--color-accent); text-decoration: none; font-weight: 500; }
     a:hover { color: var(--color-accent-dark); }
 
+    /* Ocultar notificación inglesa "Press Enter to submit form" */
+    [data-testid="InputInstructions"] { display: none !important; }
+
     @media (max-width: 640px) {
         .main .block-container {
             padding: 0.5rem 0.75rem 2rem 0.75rem;
@@ -405,8 +408,8 @@ with st.form("busqueda_ruct"):
         )
 
     st.markdown(
-        '<p class="form-hint">Los campos vacíos no aplican filtro. '
-        'La búsqueda por nombre no distingue mayúsculas/minúsculas.</p>',
+        '<p class="form-hint">Pulsa <strong>Buscar</strong> para realizar la consulta. '
+        'Los campos vacíos no aplican filtro.</p>',
         unsafe_allow_html=True,
     )
 
