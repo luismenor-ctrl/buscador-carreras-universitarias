@@ -236,21 +236,13 @@ st.markdown("""
         border-color: #6EE7B7;
     }
 
-    /* Sección de formulario */
-    .form-section {
+    /* Sección de formulario — aplicado al contenedor nativo de st.form */
+    [data-testid="stForm"] {
         background: var(--color-surface);
-        border: 1px solid var(--color-border);
+        border: 1px solid var(--color-border) !important;
         border-radius: var(--radius-lg);
         padding: 1.25rem;
         margin-bottom: 1.5rem;
-    }
-    .form-title {
-        font-size: 1rem;
-        font-weight: 600;
-        color: var(--color-text-primary);
-        margin: 0 0 1rem 0;
-        padding-bottom: 0.75rem;
-        border-bottom: 1px solid var(--color-border);
     }
     .form-hint {
         font-size: 0.75rem;
@@ -371,9 +363,6 @@ else:
 
 
 # ─── Formulario de búsqueda ───────────────────────────────────────────────────
-st.markdown('<div class="form-section">', unsafe_allow_html=True)
-st.markdown('<p class="form-title">Parámetros de búsqueda</p>', unsafe_allow_html=True)
-
 with st.form("busqueda_ruct"):
     col1, col2 = st.columns([3, 2])
     with col1:
@@ -416,8 +405,6 @@ with st.form("busqueda_ruct"):
     submitted = st.form_submit_button(
         "Buscar", use_container_width=True, type="primary"
     )
-
-st.markdown("</div>", unsafe_allow_html=True)
 
 
 # ─── Ejecución de la búsqueda ─────────────────────────────────────────────────
