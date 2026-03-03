@@ -364,19 +364,12 @@ else:
 
 # ─── Formulario de búsqueda ───────────────────────────────────────────────────
 with st.form("busqueda_ruct"):
-    col1, col2 = st.columns([3, 2])
-    with col1:
-        descripcion = st.text_input(
-            "Nombre del título",
-            placeholder="Ej: Ingeniería Informática, Medicina...",
-            help="Busca por palabras en el nombre oficial del título",
-        )
-    with col2:
-        codigo = st.text_input(
-            "Código del título",
-            placeholder="Ej: 2500798",
-            help="Código numérico exacto del título en el RUCT",
-        )
+    descripcion = st.text_input(
+        "Nombre del título",
+        placeholder="Ej: Ingeniería Informática, Medicina...",
+        help="Busca por palabras en el nombre oficial del título",
+    )
+    codigo = ""
 
     col3, col4, col5 = st.columns(3)
     with col3:
