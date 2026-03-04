@@ -6,7 +6,7 @@ import requests
 from bs4 import BeautifulSoup
 import ruct_scraper
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 
 # ─── Page configuration ───────────────────────────────────────────────────────
 st.set_page_config(
