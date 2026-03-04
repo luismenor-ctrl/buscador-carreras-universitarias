@@ -2,6 +2,9 @@ import streamlit as st
 import pandas as pd
 import logging
 import urllib.parse
+import requests
+from bs4 import BeautifulSoup
+import anthropic
 import ruct_scraper
 
 logging.basicConfig(level=logging.INFO)
@@ -34,7 +37,6 @@ st.markdown("""
         --color-success-light: #D1FAE5;
         --color-warning: #F59E0B;
         --radius-lg: 0.75rem;
-        --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.05);
     }
 
     body, p, h1, h2, h3, h4, h5, h6, div, label, button,
@@ -86,44 +88,11 @@ st.markdown("""
         letter-spacing: 0.04em;
     }
 
-    /* Expanders */
-    [data-testid="stExpander"] {
-        border: 1px solid var(--color-border) !important;
-        border-radius: var(--radius-lg) !important;
-        overflow: hidden;
-        margin-bottom: 0.5rem;
-    }
-    [data-testid="stExpander"] summary,
-    .streamlit-expanderHeader {
-        background: #FFFFFF !important;
-        font-weight: 600 !important;
-        font-size: 0.9rem !important;
-        color: #171717 !important;
-        padding: 0.875rem 1rem !important;
-        border: none !important;
-    }
-    [data-testid="stExpanderDetails"] {
-        padding: 0.75rem 1rem 1rem 1rem !important;
-        border-top: 1px solid var(--color-border) !important;
-    }
-
-    /* Buttons */
-    .stButton > button {
+    /* Search form submit button — prominent blue */
+    [data-testid="stForm"] [data-testid="stFormSubmitButton"] > button {
         background: var(--color-accent) !important;
         color: white !important;
         border: none !important;
-        border-radius: var(--radius-lg) !important;
-        padding: 0.625rem 1.25rem !important;
-        font-weight: 500 !important;
-        font-size: 0.875rem !important;
-        width: 100%;
-        min-height: 44px;
-    }
-    .stButton > button:hover { background: var(--color-accent-dark) !important; }
-
-    /* Search button — more prominent */
-    [data-testid="stForm"] [data-testid="stFormSubmitButton"] > button {
-        background: var(--color-accent) !important;
         font-size: 1.05rem !important;
         font-weight: 700 !important;
         letter-spacing: 0.02em !important;
@@ -131,13 +100,14 @@ st.markdown("""
         border-radius: var(--radius-lg) !important;
         box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35) !important;
         transition: box-shadow 0.2s ease, background 0.2s ease !important;
+        width: 100%;
     }
     [data-testid="stForm"] [data-testid="stFormSubmitButton"] > button:hover {
         background: var(--color-accent-dark) !important;
         box-shadow: 0 6px 16px rgba(59, 130, 246, 0.45) !important;
     }
 
-    /* Selectbox and multiselect */
+    /* Selectbox and text input */
     .stSelectbox > div > div,
     .stMultiSelect > div > div {
         border-color: var(--color-border) !important;
@@ -145,15 +115,11 @@ st.markdown("""
         background: #FFFFFF !important;
         min-height: 44px;
     }
-
     .stTextInput > div > div > input {
         border-color: var(--color-border) !important;
         border-radius: var(--radius-lg) !important;
         min-height: 44px;
     }
-
-    /* Radio buttons */
-    .stRadio label { min-height: 36px; display: flex; align-items: center; }
 
     /* Header */
     .header-container {
@@ -205,7 +171,7 @@ st.markdown("""
         border-color: #6EE7B7;
     }
 
-    /* Form section — applied to st.form's native container */
+    /* Form section */
     [data-testid="stForm"] {
         background: var(--color-surface);
         border: 1px solid var(--color-border) !important;
@@ -232,14 +198,12 @@ st.markdown("""
         flex-direction: column;
     }
     .result-list li:last-child { border-bottom: none; }
-    .result-list li a {
+    .result-title {
         font-size: 0.95rem;
         font-weight: 500;
-        color: var(--color-accent);
-        text-decoration: none;
+        color: #171717;
         line-height: 1.4;
     }
-    .result-list li a:hover { color: var(--color-accent-dark); }
     .result-univ {
         font-size: 0.78rem;
         color: var(--color-text-secondary);
@@ -257,7 +221,6 @@ st.markdown("""
         color: #92400E;
         margin-bottom: 1rem;
     }
-
     .info-box {
         background: var(--color-accent-light);
         border: 1px solid #93C5FD;
@@ -269,7 +232,6 @@ st.markdown("""
         margin-bottom: 1rem;
     }
 
-    /* Separator */
     hr {
         margin: 1.5rem 0;
         border: none;
@@ -304,6 +266,94 @@ def _prepare_options(items: list) -> tuple:
     display = [label for label, _ in items]
     values = {label: val for label, val in items}
     return display, values
+
+
+# ─── Study plan agent ─────────────────────────────────────────────────────────
+_WEB_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    )
+}
+
+
+def _search_web(query: str) -> list[str]:
+    """Return top result URLs from DuckDuckGo for the given query."""
+    try:
+        url = "https://html.duckduckgo.com/html/?q=" + urllib.parse.quote(query)
+        r = requests.get(url, headers=_WEB_HEADERS, timeout=10)
+        soup = BeautifulSoup(r.text, "lxml")
+        urls = []
+        for a in soup.select("a.result__a")[:5]:
+            href = a.get("href", "")
+            if "uddg=" in href:
+                href = urllib.parse.unquote(href.split("uddg=")[1].split("&")[0])
+            if href.startswith("http"):
+                urls.append(href)
+        return urls
+    except Exception:
+        return []
+
+
+def _fetch_page_text(url: str) -> str:
+    """Fetch a web page and return its main text content (up to 5 000 chars)."""
+    try:
+        r = requests.get(url, headers=_WEB_HEADERS, timeout=10)
+        soup = BeautifulSoup(r.text, "lxml")
+        for el in soup(["script", "style", "nav", "footer", "header"]):
+            el.decompose()
+        return soup.get_text(separator="\n", strip=True)[:5000]
+    except Exception:
+        return ""
+
+
+def _get_study_plan(title: str, university: str) -> dict:
+    """
+    Search the web for the degree's study plan and use Claude to present
+    the information clearly.
+    """
+    api_key = st.secrets.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return {"error": "no_api_key"}
+
+    # Step 1: web search for the study plan page
+    urls = _search_web(f"{title} plan de estudios {university}")
+    page_text = ""
+    source_url = ""
+    for url in urls:
+        text = _fetch_page_text(url)
+        if len(text) > 300:
+            page_text = text
+            source_url = url
+            break
+
+    context = (
+        f"Información extraída de: {source_url}\n\n{page_text}"
+        if page_text
+        else "No se encontró contenido web adicional."
+    )
+
+    # Step 2: Claude processes the content and presents the study plan
+    prompt = f"""Eres un asistente experto en educación universitaria española.
+
+Titulación: {title}
+Universidad: {university}
+
+{context}
+
+Presenta el plan de estudios de forma clara y estructurada: cursos, asignaturas principales con sus créditos, y menciones o especialidades disponibles. Si la información web no es suficiente, usa tu conocimiento sobre este programa. Responde en español."""
+
+    client = anthropic.Anthropic(api_key=api_key)
+    msg = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1500,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return {
+        "content": msg.content[0].text,
+        "source_url": source_url,
+    }
 
 
 # ─── Header ───────────────────────────────────────────────────────────────────
@@ -409,6 +459,8 @@ if submitted:
     st.session_state["df_resultados"] = df
     st.session_state["warning_scraper"] = warning
     st.session_state["last_search_term"] = search_term.strip()
+    # Reset selected degree when a new search is performed
+    st.session_state["selected_degree"] = None
 
 
 # ─── Display results ──────────────────────────────────────────────────────────
@@ -438,42 +490,83 @@ if df_res is not None:
                 'Prueba a ampliar la búsqueda o cambiar los parámetros.</div>',
                 unsafe_allow_html=True,
             )
+
     else:
         n = len(df_res)
+        selected = st.session_state.get("selected_degree")
 
-        # Quick metrics
-        col_m1, col_m2 = st.columns(2)
-        with col_m1:
-            st.metric("Títulos encontrados", f"{n:,}")
-        with col_m2:
-            st.metric("Universidades", f"{df_res['universidad'].nunique():,}")
+        # ── Detail view: study plan for the selected degree ────────────────────
+        if selected:
+            if st.button("← Volver a los resultados"):
+                st.session_state["selected_degree"] = None
+                st.rerun()
 
-        st.divider()
+            st.markdown(f"### {selected['title']}")
+            st.caption(selected["university"])
+            st.divider()
 
-        # Pagination controls
-        page_size = 25
-        total_pages = max(1, (n - 1) // page_size + 1)
-        detail_page = st.number_input(
-            f"Página (de {total_pages})",
-            min_value=1,
-            max_value=total_pages,
-            value=1,
-            step=1,
-        )
-        start = (detail_page - 1) * page_size
-        end = min(start + page_size, n)
-        st.caption(f"Mostrando {start + 1}–{end} de {n} resultados")
+            # Use session_state as a cache to avoid re-fetching
+            if "study_plans" not in st.session_state:
+                st.session_state["study_plans"] = {}
+            plan_key = f"{selected['title']}|||{selected['university']}"
 
-        # Results list — each title links to a Google search for its study plan
-        items_html = ""
-        for _, row in df_res.iloc[start:end].iterrows():
-            title = row["titulo"]
-            univ = row["universidad"]
-            query = urllib.parse.quote(f'"{title}" plan de estudios {univ}')
-            url = f"https://www.google.com/search?q={query}"
-            items_html += (
-                f'<li><a href="{url}" target="_blank" rel="noopener">{title}</a>'
-                f'<span class="result-univ">{univ}</span></li>'
+            if plan_key not in st.session_state["study_plans"]:
+                with st.spinner("Buscando el plan de estudios..."):
+                    st.session_state["study_plans"][plan_key] = _get_study_plan(
+                        selected["title"], selected["university"]
+                    )
+
+            plan = st.session_state["study_plans"][plan_key]
+
+            if plan.get("error") == "no_api_key":
+                st.warning(
+                    "Para mostrar el plan de estudios es necesaria una clave de API de Anthropic. "
+                    "Añade ANTHROPIC_API_KEY en los secretos de Streamlit Cloud."
+                )
+            else:
+                st.markdown(plan.get("content", ""))
+                if plan.get("source_url"):
+                    st.caption(f"[Ver fuente]({plan['source_url']})")
+
+        # ── Results list ───────────────────────────────────────────────────────
+        else:
+            # Quick metrics
+            col_m1, col_m2 = st.columns(2)
+            with col_m1:
+                st.metric("Títulos encontrados", f"{n:,}")
+            with col_m2:
+                st.metric("Universidades", f"{df_res['universidad'].nunique():,}")
+
+            st.divider()
+
+            # Pagination
+            page_size = 25
+            total_pages = max(1, (n - 1) // page_size + 1)
+            detail_page = st.number_input(
+                f"Página (de {total_pages})",
+                min_value=1,
+                max_value=total_pages,
+                value=st.session_state.get("result_page", 1),
+                step=1,
             )
+            st.session_state["result_page"] = detail_page
+            start = (detail_page - 1) * page_size
+            end = min(start + page_size, n)
+            st.caption(f"Mostrando {start + 1}–{end} de {n} resultados · pulsa un título para ver su plan de estudios")
 
-        st.markdown(f'<ul class="result-list">{items_html}</ul>', unsafe_allow_html=True)
+            # One row per result: title+university on the left, "Ver" button on the right
+            for i, (_, row) in enumerate(df_res.iloc[start:end].iterrows()):
+                col_info, col_btn = st.columns([6, 1])
+                with col_info:
+                    st.markdown(
+                        f'<span class="result-title">{row["titulo"]}</span>'
+                        f'<br><span class="result-univ">{row["universidad"]}</span>',
+                        unsafe_allow_html=True,
+                    )
+                with col_btn:
+                    if st.button("Ver", key=f"view_{start + i}", use_container_width=True):
+                        st.session_state["selected_degree"] = {
+                            "title": row["titulo"],
+                            "university": row["universidad"],
+                        }
+                        st.rerun()
