@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import logging
+import re
 import urllib.parse
 import requests
 from bs4 import BeautifulSoup
@@ -295,8 +296,8 @@ def _search_web(query: str) -> list[str]:
         return []
 
 
-def _fetch_page_text(url: str) -> str:
-    """Fetch a web page and return its main text content (up to 5 000 chars).
+def _fetch_page_text(url: str, max_chars: int = 5000) -> str:
+    """Fetch a web page and return its main text content.
     Prioritises <main> or <article> to avoid navigation noise."""
     try:
         r = requests.get(url, headers=_WEB_HEADERS, timeout=10)
@@ -306,59 +307,77 @@ def _fetch_page_text(url: str) -> str:
         for el in soup(["script", "style", "nav", "footer", "header"]):
             el.decompose()
         target = soup.find("main") or soup.find("article") or soup.body or soup
-        return target.get_text(separator="\n", strip=True)[:5000]
+        return target.get_text(separator="\n", strip=True)[:max_chars]
     except Exception:
         return ""
 
 
+def _boe_pdf_to_html(pdf_url: str) -> str:
+    """Convert a BOE PDF URL to its plain-text HTML equivalent.
+    e.g. http://www.boe.es/boe/dias/2022/01/03/pdfs/BOE-A-2022-134.pdf
+      -> https://www.boe.es/diario_boe/txt.php?id=BOE-A-2022-134
+    """
+    m = re.search(r"(BOE-[A-Z]-\d{4}-\d+)\.pdf", pdf_url)
+    return f"https://www.boe.es/diario_boe/txt.php?id={m.group(1)}" if m else ""
+
+
 def _fetch_ruct_detail(url_ruct: str) -> dict:
-    """Fetch the RUCT degree detail page and return its metadata as plain text.
-    The RUCT page contains credit breakdown, level, branch and BOE dates but
-    does not link to the university's own website, so url_universidad is always None."""
+    """Fetch the RUCT degree detail page and extract:
+    - texto: metadata text (credits, level, branch)
+    - url_boe_plan: HTML URL of the BOE 'Plan Estudios' resolution (most reliable source)
+    """
     if not url_ruct:
-        return {"texto": "", "url_universidad": None}
+        return {"texto": "", "url_boe_plan": None}
     try:
         r = requests.get(url_ruct, headers=_WEB_HEADERS, timeout=15)
         r.raise_for_status()
         soup = BeautifulSoup(r.text, "lxml")
         for el in soup(["script", "style", "nav", "footer", "header"]):
             el.decompose()
-        # Extract any external link that is not a government/BOE domain
-        url_universidad = None
-        skip = ("educacion.gob.es", "boe.es", "ciencia.gob.es", "universidades.gob.es")
+
+        # Find the BOE link whose surrounding context mentions "Plan Estudios"
+        url_boe_plan = None
         for a in soup.find_all("a", href=True):
             href = a["href"]
-            if href.startswith("http") and not any(d in href for d in skip):
-                url_universidad = href
+            if "boe.es" not in href or ".pdf" not in href:
+                continue
+            # Walk up the DOM to find context text
+            el = a.parent
+            for _ in range(4):
+                if el and "Plan Estudios" in el.get_text():
+                    url_boe_plan = _boe_pdf_to_html(href)
+                    break
+                el = el.parent if el else None
+            if url_boe_plan:
                 break
-        texto = soup.get_text(separator="\n", strip=True)[:3000]
-        return {"texto": texto, "url_universidad": url_universidad}
+
+        texto = soup.get_text(separator="\n", strip=True)[:2000]
+        return {"texto": texto, "url_boe_plan": url_boe_plan}
     except Exception:
-        return {"texto": "", "url_universidad": None}
+        return {"texto": "", "url_boe_plan": None}
 
 
 def _find_study_plan(title: str, university: str, url_ruct: str = "") -> dict:
     """
-    Locate the study plan by scraping the university's website.
-    Source chain:
-      1. RUCT detail page — official metadata (credits, branch, level)
-      2. URL found in the RUCT page (if any external link present)
-      3. DuckDuckGo search for the study plan page on the university site
+    Locate the study plan using this source chain:
+      1. BOE 'Publicación Plan Estudios' resolution (extracted from RUCT detail page)
+         — official, structured, contains all subjects and credits
+      2. DuckDuckGo search on the university's website as fallback
     Returns {"ruct_text": str, "page_text": str, "source_url": str}
     """
-    # Step 1: RUCT detail page (metadata + possible university link)
-    ruct_data = _fetch_ruct_detail(url_ruct) if url_ruct else {"texto": "", "url_universidad": None}
+    # Step 1: RUCT detail page → BOE plan URL
+    ruct_data = _fetch_ruct_detail(url_ruct) if url_ruct else {"texto": "", "url_boe_plan": None}
     ruct_text = ruct_data.get("texto", "")
 
-    # Step 2: University web content
     page_text = ""
     source_url = ""
 
-    univ_url = ruct_data.get("url_universidad")
-    if univ_url:
-        page_text = _fetch_page_text(univ_url)
+    # Step 2: BOE HTML page (primary source — official study plan resolution)
+    boe_url = ruct_data.get("url_boe_plan")
+    if boe_url:
+        page_text = _fetch_page_text(boe_url, max_chars=10000)
         if page_text:
-            source_url = univ_url
+            source_url = boe_url
 
     # Step 3: DuckDuckGo fallback
     if not page_text:
