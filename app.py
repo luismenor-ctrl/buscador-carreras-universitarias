@@ -277,6 +277,12 @@ _WEB_HEADERS = {
     )
 }
 
+_RUCT_INIT_URL = "https://www.educacion.gob.es/ruct/consultaestudios.action"
+_RUCT_MODULES_URL = (
+    "https://www.educacion.gob.es/ruct/solicitud/datosModulo"
+    "?actual=menu.solicitud.planificacion.materiasSin&codModulo=0"
+)
+
 
 def _search_web(query: str) -> list[str]:
     """Return top result URLs from DuckDuckGo for the given query."""
@@ -357,15 +363,58 @@ def _fetch_ruct_detail(url_ruct: str) -> dict:
         return {"texto": "", "url_boe_plan": None}
 
 
-def _find_study_plan(title: str, university: str, url_ruct: str = "") -> dict:
+def _fetch_ruct_modules(url_plan: str) -> str:
+    """
+    Fetch the 'Módulos o Materias' page from RUCT for a given degree.
+
+    Session flow:
+      1. GET /ruct/consultaestudios.action  — initialise session
+      2. GET url_plan (lupa link)           — register this degree in server session
+      3. GET datosModulo                    — returns static HTML with full module list
+
+    Returns a markdown-formatted list of modules, or "" on failure.
+    """
+    if not url_plan:
+        return ""
+    try:
+        session = requests.Session()
+        session.headers.update(_WEB_HEADERS)
+        session.get(_RUCT_INIT_URL, timeout=15)
+        session.get(url_plan, timeout=15)
+        r = session.get(_RUCT_MODULES_URL, timeout=15)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.text, "lxml")
+        table = soup.find("table")
+        if not table:
+            return ""
+        items = []
+        for tr in table.find_all("tr")[1:]:  # Skip header row
+            cells = tr.find_all("td")
+            if len(cells) >= 2:
+                name = cells[1].get_text(strip=True)
+                if name:
+                    items.append(f"- {name}")
+        if not items:
+            return ""
+        return "**Módulos y materias**\n\n" + "\n".join(items)
+    except Exception:
+        return ""
+
+
+def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: str = "") -> dict:
     """
     Locate the study plan using this source chain:
-      1. BOE 'Publicación Plan Estudios' resolution (extracted from RUCT detail page)
-         — official, structured, contains all subjects and credits
-      2. DuckDuckGo search on the university's website as fallback
+      1. RUCT 'Módulos o Materias' page via the lupa link (most reliable, official)
+      2. BOE 'Publicación Plan Estudios' resolution (extracted from RUCT detail page)
+      3. DuckDuckGo search on the university's website as fallback
     Returns {"ruct_text": str, "page_text": str, "source_url": str}
     """
-    # Step 1: RUCT detail page → BOE plan URL
+    # Step 1: RUCT modules page (primary source)
+    modules_text = _fetch_ruct_modules(url_plan) if url_plan else ""
+    if modules_text:
+        return {"ruct_text": "", "page_text": modules_text, "source_url": ""}
+
+    # Step 2: RUCT detail page → BOE plan URL
     ruct_data = _fetch_ruct_detail(url_ruct) if url_ruct else {"texto": "", "url_boe_plan": None}
     ruct_text = ruct_data.get("texto", "")
 
@@ -545,6 +594,8 @@ if df_res is not None:
 
             st.markdown(f"### {selected['title']}")
             st.caption(selected["university"])
+            if selected.get("url_ruct"):
+                st.link_button("Ver ficha en el RUCT →", selected["url_ruct"])
             st.divider()
 
             # Use session_state as a cache to avoid re-fetching
@@ -555,7 +606,10 @@ if df_res is not None:
             if plan_key not in st.session_state["study_plans"]:
                 with st.spinner("Buscando el plan de estudios..."):
                     st.session_state["study_plans"][plan_key] = _find_study_plan(
-                        selected["title"], selected["university"], selected.get("url_ruct", "")
+                        selected["title"],
+                        selected["university"],
+                        selected.get("url_ruct", ""),
+                        selected.get("url_plan", ""),
                     )
 
             plan = st.session_state["study_plans"][plan_key]
@@ -624,5 +678,6 @@ if df_res is not None:
                             "title": row["titulo"],
                             "university": row["universidad"],
                             "url_ruct": row.get("url_ruct", ""),
+                            "url_plan": row.get("url_plan", ""),
                         }
                         st.rerun()

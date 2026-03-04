@@ -62,7 +62,7 @@ SITUACIONES = {
     "X": "Titulación a Extinguir",
 }
 
-RESULT_COLUMNS = ["codigo", "titulo", "universidad", "nivel", "estado", "url_ruct"]
+RESULT_COLUMNS = ["codigo", "titulo", "universidad", "nivel", "estado", "url_ruct", "url_plan"]
 
 
 def _strip_accents(text: str) -> str:
@@ -276,7 +276,7 @@ def _parse_table(soup: BeautifulSoup) -> list[dict]:
         if len(cells) < 5:
             continue
 
-        # The title cell may contain a link to the degree detail page
+        # Cell 1: title link → RUCT degree detail page
         link_tag = cells[1].find("a")
         url_ruct = ""
         if link_tag and link_tag.get("href"):
@@ -287,6 +287,18 @@ def _parse_table(soup: BeautifulSoup) -> list[dict]:
                 else f"https://www.educacion.gob.es{href}"
             )
 
+        # Cell 5: lupa (magnifying-glass) icon → plan details page (Memoria de verificación)
+        url_plan = ""
+        if len(cells) > 5:
+            plan_link = cells[5].find("a")
+            if plan_link and plan_link.get("href"):
+                href = plan_link["href"]
+                url_plan = (
+                    href
+                    if href.startswith("http")
+                    else f"https://www.educacion.gob.es{href}"
+                )
+
         rows.append({
             "codigo": cells[0].text.strip(),
             "titulo": cells[1].text.strip(),
@@ -294,6 +306,7 @@ def _parse_table(soup: BeautifulSoup) -> list[dict]:
             "nivel": cells[3].text.strip(),
             "estado": cells[4].text.strip(),
             "url_ruct": url_ruct,
+            "url_plan": url_plan,
         })
     return rows
 
