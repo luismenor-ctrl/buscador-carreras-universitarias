@@ -4,7 +4,6 @@ import logging
 import urllib.parse
 import requests
 from bs4 import BeautifulSoup
-import anthropic
 import ruct_scraper
 
 logging.basicConfig(level=logging.INFO)
@@ -268,7 +267,7 @@ def _prepare_options(items: list) -> tuple:
     return display, values
 
 
-# ─── Study plan agent ─────────────────────────────────────────────────────────
+# ─── Study plan scraper ───────────────────────────────────────────────────────
 _WEB_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -338,18 +337,16 @@ def _fetch_ruct_detail(url_ruct: str) -> dict:
         return {"texto": "", "url_universidad": None}
 
 
-def _get_study_plan(title: str, university: str, url_ruct: str = "") -> dict:
+def _find_study_plan(title: str, university: str, url_ruct: str = "") -> dict:
     """
-    Build a study plan for the given degree using a source chain:
-      1. RUCT detail page (official metadata: credits, branch, level)
-      2. University web page found via DuckDuckGo (or from RUCT if available)
-      3. Claude's own knowledge as final fallback
+    Locate the study plan by scraping the university's website.
+    Source chain:
+      1. RUCT detail page — official metadata (credits, branch, level)
+      2. URL found in the RUCT page (if any external link present)
+      3. DuckDuckGo search for the study plan page on the university site
+    Returns {"ruct_text": str, "page_text": str, "source_url": str}
     """
-    api_key = st.secrets.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        return {"error": "no_api_key"}
-
-    # Step 1: RUCT detail page
+    # Step 1: RUCT detail page (metadata + possible university link)
     ruct_data = _fetch_ruct_detail(url_ruct) if url_ruct else {"texto": "", "url_universidad": None}
     ruct_text = ruct_data.get("texto", "")
 
@@ -357,51 +354,29 @@ def _get_study_plan(title: str, university: str, url_ruct: str = "") -> dict:
     page_text = ""
     source_url = ""
 
-    # Try a URL extracted directly from the RUCT page (rare, but possible)
     univ_url = ruct_data.get("url_universidad")
     if univ_url:
         page_text = _fetch_page_text(univ_url)
         if page_text:
             source_url = univ_url
 
-    # Fallback to DuckDuckGo
+    # Step 3: DuckDuckGo fallback
     if not page_text:
-        urls = _search_web(f"{title} plan de estudios {university}")
-        for url in urls:
-            text = _fetch_page_text(url)
-            if len(text) > 300:
-                page_text = text
-                source_url = url
+        for query in [
+            f'"{title}" "plan de estudios" {university}',
+            f"{title} plan de estudios {university}",
+        ]:
+            urls = _search_web(query)
+            for url in urls:
+                text = _fetch_page_text(url)
+                if len(text) > 400:
+                    page_text = text
+                    source_url = url
+                    break
+            if page_text:
                 break
 
-    # Step 3: Build context for Claude
-    context_parts = []
-    if ruct_text:
-        context_parts.append(f"--- Ficha oficial RUCT ---\n{ruct_text}")
-    if page_text:
-        context_parts.append(f"--- Web universidad ({source_url}) ---\n{page_text}")
-    context = "\n\n".join(context_parts) if context_parts else "No se encontró contenido adicional."
-
-    # Step 4: Claude presents the study plan
-    prompt = f"""Eres un asistente experto en educación universitaria española.
-
-Titulación: {title}
-Universidad: {university}
-
-{context}
-
-Presenta el plan de estudios de forma clara y estructurada: cursos, asignaturas principales con sus créditos, y menciones o especialidades disponibles. Si la información web no es suficiente, usa tu conocimiento sobre este programa. Responde en español."""
-
-    client = anthropic.Anthropic(api_key=api_key)
-    msg = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=1500,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return {
-        "content": msg.content[0].text,
-        "source_url": source_url,
-    }
+    return {"ruct_text": ruct_text, "page_text": page_text, "source_url": source_url}
 
 
 # ─── Header ───────────────────────────────────────────────────────────────────
@@ -560,21 +535,34 @@ if df_res is not None:
 
             if plan_key not in st.session_state["study_plans"]:
                 with st.spinner("Buscando el plan de estudios..."):
-                    st.session_state["study_plans"][plan_key] = _get_study_plan(
+                    st.session_state["study_plans"][plan_key] = _find_study_plan(
                         selected["title"], selected["university"], selected.get("url_ruct", "")
                     )
 
             plan = st.session_state["study_plans"][plan_key]
 
-            if plan.get("error") == "no_api_key":
-                st.warning(
-                    "Para mostrar el plan de estudios es necesaria una clave de API de Anthropic. "
-                    "Añade ANTHROPIC_API_KEY en los secretos de Streamlit Cloud."
+            if plan.get("source_url"):
+                st.link_button(
+                    "Ver plan de estudios en la web de la universidad →",
+                    plan["source_url"],
+                    use_container_width=True,
+                )
+                st.divider()
+
+            if plan.get("page_text"):
+                st.markdown(plan["page_text"])
+            elif plan.get("ruct_text"):
+                st.markdown(plan["ruct_text"])
+                st.markdown(
+                    '<div class="info-box">No se encontró la página del plan de estudios en la web '
+                    'de la universidad. Se muestran los datos oficiales del RUCT.</div>',
+                    unsafe_allow_html=True,
                 )
             else:
-                st.markdown(plan.get("content", ""))
-                if plan.get("source_url"):
-                    st.caption(f"[Ver fuente]({plan['source_url']})")
+                st.warning(
+                    "No se pudo localizar el plan de estudios. "
+                    "Prueba a buscar directamente en la web de la universidad."
+                )
 
         # ── Results list ───────────────────────────────────────────────────────
         else:
