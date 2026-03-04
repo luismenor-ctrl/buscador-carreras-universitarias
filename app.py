@@ -5,7 +5,7 @@ import ruct_scraper
 
 logging.basicConfig(level=logging.INFO)
 
-# ─── Configuración de página ──────────────────────────────────────────────────
+# ─── Page configuration ───────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Buscador RUCT — Carreras Universitarias España",
     page_icon="🎓",
@@ -57,17 +57,17 @@ st.markdown("""
         min-height: 44px !important;
     }
 
-    .stApp { background: var(--color-bg); }
+    .stApp { background: #FFFFFF; }
 
     .main .block-container {
         padding: 3.5rem 1rem 2rem 1rem;
         max-width: 800px;
-        background: var(--color-bg);
+        background: #FFFFFF;
     }
 
-    /* Métricas */
+    /* Metrics */
     div[data-testid="metric-container"] {
-        background: var(--color-bg);
+        background: #FFFFFF;
         padding: 0.875rem;
         border-radius: var(--radius-lg);
         border: 1px solid var(--color-border);
@@ -75,7 +75,7 @@ st.markdown("""
     [data-testid="stMetricValue"] {
         font-size: 1.5rem !important;
         font-weight: 700;
-        color: var(--color-text-primary);
+        color: #171717;
     }
     [data-testid="stMetricLabel"] {
         font-size: 0.7rem !important;
@@ -94,10 +94,10 @@ st.markdown("""
     }
     [data-testid="stExpander"] summary,
     .streamlit-expanderHeader {
-        background: var(--color-bg) !important;
+        background: #FFFFFF !important;
         font-weight: 600 !important;
         font-size: 0.9rem !important;
-        color: var(--color-text-primary) !important;
+        color: #171717 !important;
         padding: 0.875rem 1rem !important;
         border: none !important;
     }
@@ -106,7 +106,7 @@ st.markdown("""
         border-top: 1px solid var(--color-border) !important;
     }
 
-    /* Botones */
+    /* Buttons */
     .stButton > button {
         background: var(--color-accent) !important;
         color: white !important;
@@ -120,7 +120,7 @@ st.markdown("""
     }
     .stButton > button:hover { background: var(--color-accent-dark) !important; }
 
-    /* Botón de búsqueda — más prominente */
+    /* Search button — more prominent */
     [data-testid="stForm"] [data-testid="stFormSubmitButton"] > button {
         background: var(--color-accent) !important;
         font-size: 1.05rem !important;
@@ -136,12 +136,12 @@ st.markdown("""
         box-shadow: 0 6px 16px rgba(59, 130, 246, 0.45) !important;
     }
 
-    /* Selectbox y multiselect */
+    /* Selectbox and multiselect */
     .stSelectbox > div > div,
     .stMultiSelect > div > div {
         border-color: var(--color-border) !important;
         border-radius: var(--radius-lg) !important;
-        background: var(--color-bg) !important;
+        background: #FFFFFF !important;
         min-height: 44px;
     }
 
@@ -191,7 +191,7 @@ st.markdown("""
         font-weight: 600;
         border: 1px solid var(--color-border);
         background: var(--color-surface);
-        color: var(--color-text-primary);
+        color: #171717;
     }
     .badge-country {
         background: var(--color-accent-light);
@@ -204,7 +204,7 @@ st.markdown("""
         border-color: #6EE7B7;
     }
 
-    /* Sección de formulario — aplicado al contenedor nativo de st.form */
+    /* Form section — applied to st.form's native container */
     [data-testid="stForm"] {
         background: var(--color-surface);
         border: 1px solid var(--color-border) !important;
@@ -218,7 +218,7 @@ st.markdown("""
         margin-top: 0.5rem;
     }
 
-    /* Tabla de resultados */
+    /* Results table */
     .stDataFrame {
         border: 1px solid var(--color-border);
         border-radius: var(--radius-lg);
@@ -248,7 +248,7 @@ st.markdown("""
         margin-bottom: 1rem;
     }
 
-    /* Separador */
+    /* Separator */
     hr {
         margin: 1.5rem 0;
         border: none;
@@ -259,7 +259,7 @@ st.markdown("""
     a { color: var(--color-accent); text-decoration: none; font-weight: 500; }
     a:hover { color: var(--color-accent-dark); }
 
-    /* Ocultar notificación inglesa "Press Enter to submit form" */
+    /* Hide English "Press Enter to submit form" notification */
     [data-testid="InputInstructions"] { display: none !important; }
 
     @media (max-width: 640px) {
@@ -272,15 +272,16 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# ─── Carga de opciones (con caché 1 hora) ─────────────────────────────────────
+# ─── Load options (cached for 1 hour) ────────────────────────────────────────
 @st.cache_data(ttl=3600, show_spinner="Conectando con el RUCT...")
-def _cargar_opciones():
-    return ruct_scraper.cargar_opciones_formulario(timeout=20)
+def _load_options():
+    return ruct_scraper.load_form_options(timeout=20)
 
 
-def _preparar_opciones(lista: list) -> tuple:
-    display = [texto for texto, _ in lista]
-    values = {texto: val for texto, val in lista}
+def _prepare_options(items: list) -> tuple:
+    """Convert a list of (label, value) tuples into a display list and value dict."""
+    display = [label for label, _ in items]
+    values = {label: val for label, val in items}
     return display, values
 
 
@@ -299,19 +300,19 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# ─── Cargar opciones del formulario ───────────────────────────────────────────
+# ─── Load form options ────────────────────────────────────────────────────────
 try:
-    opciones = _cargar_opciones()
+    options = _load_options()
 except Exception:
-    opciones = None
+    options = None
     st.warning("No se pudo conectar con el RUCT para cargar las opciones. "
                "Comprueba tu conexión e intenta de nuevo.")
 
-# Preparar listas para los selectbox
-if opciones:
-    univ_display, univ_values = _preparar_opciones(opciones["universidades"])
-    rama_display, rama_values = _preparar_opciones(opciones["ramas"])
-    tipo_display, tipo_values = _preparar_opciones(opciones["tipos"])
+# Prepare selectbox lists
+if options:
+    univ_display, univ_values = _prepare_options(options["universidades"])
+    rama_display, rama_values = _prepare_options(options["ramas"])
+    tipo_display, tipo_values = _prepare_options(options["tipos"])
 else:
     univ_display = ["Todas"]
     univ_values  = {"Todas": ""}
@@ -327,27 +328,27 @@ else:
     tipo_values  = {"Todos": "", "Grado": "G", "Máster": "M", "Doctor": "D"}
 
 
-# ─── Formulario de búsqueda ───────────────────────────────────────────────────
+# ─── Search form ──────────────────────────────────────────────────────────────
 with st.form("busqueda_ruct"):
-    descripcion = st.text_input(
+    search_term = st.text_input(
         "Nombre del título",
         placeholder="Ej: Ingeniería Informática, Medicina...",
         help="Busca por palabras en el nombre oficial del título",
     )
 
-    col3, col4, col5 = st.columns(3)
-    with col3:
+    col1, col2, col3 = st.columns(3)
+    with col1:
         tipo_sel = st.selectbox(
             "Nivel académico",
             options=tipo_display,
             index=tipo_display.index("Grado") if "Grado" in tipo_display else 0,
         )
-    with col4:
+    with col2:
         rama_sel = st.selectbox(
             "Rama de conocimiento",
             options=rama_display,
         )
-    with col5:
+    with col3:
         univ_sel = st.selectbox(
             "Universidad",
             options=univ_display,
@@ -364,15 +365,15 @@ with st.form("busqueda_ruct"):
     )
 
 
-# ─── Ejecución de la búsqueda ─────────────────────────────────────────────────
+# ─── Run search ───────────────────────────────────────────────────────────────
 if submitted:
     tipo_val = tipo_values.get(tipo_sel, "")
     rama_val = rama_values.get(rama_sel, "")
     univ_val = univ_values.get(univ_sel, "")
 
     with st.spinner("Consultando el RUCT... esto puede tardar unos segundos."):
-        df, warning = ruct_scraper.buscar_ruct(
-            descripcion=descripcion,
+        df, warning = ruct_scraper.search_ruct(
+            descripcion=search_term,
             codigo="",
             universidad=univ_val,
             tipo=tipo_val,
@@ -386,15 +387,15 @@ if submitted:
 
     st.session_state["df_resultados"] = df
     st.session_state["warning_scraper"] = warning
-    st.session_state["last_descripcion"] = descripcion.strip()
-    st.session_state["csv_bytes"] = ruct_scraper.exportar_csv(df)
+    st.session_state["last_search_term"] = search_term.strip()
+    st.session_state["csv_bytes"] = ruct_scraper.export_csv(df)
     try:
-        st.session_state["excel_bytes"] = ruct_scraper.exportar_excel(df)
+        st.session_state["excel_bytes"] = ruct_scraper.export_excel(df)
     except ImportError:
         st.session_state["excel_bytes"] = None
 
 
-# ─── Mostrar resultados ───────────────────────────────────────────────────────
+# ─── Display results ──────────────────────────────────────────────────────────
 df_res = st.session_state.get("df_resultados")
 warning_msg = st.session_state.get("warning_scraper")
 
@@ -406,8 +407,8 @@ if df_res is not None:
         )
 
     if df_res.empty:
-        last_desc = st.session_state.get("last_descripcion", "")
-        if last_desc:
+        last_term = st.session_state.get("last_search_term", "")
+        if last_term:
             st.markdown(
                 '<div class="warn-box">⚠️ El RUCT no devolvió resultados para tu búsqueda. '
                 'Si el término es habitual (p.ej. «Ingeniería», «Medicina»), '
@@ -424,17 +425,16 @@ if df_res is not None:
     else:
         n = len(df_res)
 
-        # Métricas rápidas
+        # Quick metrics
         col_m1, col_m2 = st.columns(2)
         with col_m1:
             st.metric("Títulos encontrados", f"{n:,}")
         with col_m2:
-            n_univ = df_res["universidad"].nunique()
-            st.metric("Universidades", f"{n_univ:,}")
+            st.metric("Universidades", f"{df_res['universidad'].nunique():,}")
 
         st.divider()
 
-        # Botones de descarga
+        # Download buttons
         col_dl1, col_dl2 = st.columns(2)
         with col_dl1:
             st.download_button(
@@ -458,7 +458,7 @@ if df_res is not None:
 
         st.divider()
 
-        # Tabla de resultados
+        # Results table
         df_display = df_res[["codigo", "titulo", "universidad", "nivel", "estado"]].rename(columns={
             "codigo": "Código",
             "titulo": "Título",
@@ -466,23 +466,22 @@ if df_res is not None:
             "nivel": "Nivel",
             "estado": "Estado",
         })
-
         st.dataframe(df_display, use_container_width=True, hide_index=True)
 
-        # Detalle expandible por cada resultado (muestra el enlace al RUCT)
+        # Expandable detail per result (shows link to RUCT)
         st.markdown("---")
         st.markdown("**Ver detalle en el RUCT**")
-        pagina_detalle = st.number_input(
+        detail_page = st.number_input(
             "Página (25 resultados por página)",
             min_value=1,
             max_value=max(1, (n - 1) // 25 + 1),
             value=1,
             step=1,
         )
-        inicio = (pagina_detalle - 1) * 25
-        fin = min(inicio + 25, n)
+        start = (detail_page - 1) * 25
+        end = min(start + 25, n)
 
-        for _, row in df_res.iloc[inicio:fin].iterrows():
+        for _, row in df_res.iloc[start:end].iterrows():
             label = f"{row['titulo']} — {row['universidad']}"
             with st.expander(label):
                 col_a, col_b = st.columns(2)
@@ -492,7 +491,4 @@ if df_res is not None:
                     st.markdown(f"**Estado:** {row['estado']}")
                 with col_b:
                     if row.get("url_ruct"):
-                        st.markdown(
-                            f"[Ver en el RUCT]({row['url_ruct']})",
-                            unsafe_allow_html=False,
-                        )
+                        st.markdown(f"[Ver en el RUCT]({row['url_ruct']})")

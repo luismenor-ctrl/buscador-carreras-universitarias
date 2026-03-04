@@ -1,10 +1,8 @@
 """
 ruct_scraper.py
-Scraping del RUCT (Registro de Universidades, Centros y Títulos)
+Scrapes the RUCT (Registro de Universidades, Centros y Títulos),
+Spain's official Ministry of Education registry of university degrees.
 https://www.educacion.gob.es/ruct/
-
-El RUCT es la base de datos oficial del Ministerio de Educación con todos los
-títulos universitarios oficiales de España (Grado, Máster, Doctorado, etc.).
 """
 
 import io
@@ -30,7 +28,7 @@ HEADERS = {
     "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
 }
 
-# Mapeos de valores conocidos (evita una petición GET si la conexión es lenta)
+# Known value mappings — used as fallback when the RUCT form cannot be fetched
 RAMAS_CONOCIMIENTO = {
     "": "Todas",
     "431001": "Artes y Humanidades",
@@ -64,53 +62,54 @@ SITUACIONES = {
     "X": "Titulación a Extinguir",
 }
 
-COLUMNS_RESULTADOS = ["codigo", "titulo", "universidad", "nivel", "estado", "url_ruct"]
+RESULT_COLUMNS = ["codigo", "titulo", "universidad", "nivel", "estado", "url_ruct"]
 
 
-def _quitar_acentos(texto: str) -> str:
+def _strip_accents(text: str) -> str:
     """
-    Elimina los diacríticos (acentos) de un texto.
-    Ej: 'Matemáticas' → 'Matematicas', 'Ingeniería' → 'Ingenieria'
-    El RUCT devuelve 0 resultados cuando la búsqueda contiene caracteres acentuados,
-    pero es insensible a acentos cuando recibe texto ASCII plano.
+    Remove diacritics (accents) from a string.
+    Example: 'Matemáticas' -> 'Matematicas', 'Ingeniería' -> 'Ingenieria'.
+
+    The RUCT returns 0 results when the query contains accented characters,
+    but performs accent-insensitive matching when given plain ASCII input.
     """
     return "".join(
-        c for c in unicodedata.normalize("NFD", texto)
+        c for c in unicodedata.normalize("NFD", text)
         if unicodedata.category(c) != "Mn"
     )
 
 
-def cargar_opciones_formulario(timeout: int = 20) -> dict:
+def load_form_options(timeout: int = 20) -> dict:
     """
-    Descarga el formulario del RUCT y extrae todas las opciones de los desplegables.
-    Devuelve un dict con listas de (texto, valor) para cada campo.
-    Si hay error de conexión, devuelve los valores predefinidos (sin universidades individuales).
+    Fetch the RUCT search form and extract all dropdown options.
+    Returns a dict of lists of (label, value) tuples for each field.
+    Falls back to hardcoded defaults if the connection fails.
     """
     try:
         r = requests.get(FORM_URL, headers=HEADERS, timeout=timeout)
         r.raise_for_status()
         soup = BeautifulSoup(r.text, "lxml")
 
-        def _opciones(name):
+        def _options(name):
             sel = soup.find("select", {"name": name})
             if not sel:
                 return []
             return [(o.text.strip(), o.get("value", "")) for o in sel.find_all("option")]
 
         return {
-            "universidades": _opciones("codigoUniversidad"),
-            "tipos": _opciones("codigoTipo"),
-            "ramas": _opciones("codigoRama"),
-            "ambitos": _opciones("ambito"),
-            "estados": _opciones("codigoEstado"),
-            "situaciones": _opciones("situacion"),
+            "universidades": _options("codigoUniversidad"),
+            "tipos": _options("codigoTipo"),
+            "ramas": _options("codigoRama"),
+            "ambitos": _options("ambito"),
+            "estados": _options("codigoEstado"),
+            "situaciones": _options("situacion"),
         }
 
     except Exception as e:
-        logger.warning(f"No se pudieron cargar las opciones del formulario: {e}")
-        # Devolver valores por defecto conocidos
+        logger.warning(f"Failed to load form options: {e}")
+        # Return known hardcoded defaults
         return {
-            "universidades": [("Todas", "")] ,
+            "universidades": [("Todas", "")],
             "tipos": list(TIPOS_ESTUDIO.items()),
             "ramas": [(v, k) for k, v in RAMAS_CONOCIMIENTO.items()],
             "ambitos": [("Todos", "")],
@@ -119,7 +118,7 @@ def cargar_opciones_formulario(timeout: int = 20) -> dict:
         }
 
 
-def buscar_ruct(
+def search_ruct(
     descripcion: str = "",
     codigo: str = "",
     universidad: str = "",
@@ -134,45 +133,41 @@ def buscar_ruct(
     progress_callback=None,
 ) -> tuple[pd.DataFrame, str | None]:
     """
-    Busca titulaciones en el RUCT con los parámetros indicados.
+    Search for university degrees in the RUCT.
 
-    Parámetros
+    Parameters
     ----------
-    descripcion    Texto libre en el nombre del título
-    codigo         Código numérico del estudio (opcional)
-    universidad    Código de universidad ('' = todas)
-    tipo           Tipo de estudio: 'G'=Grado, 'M'=Máster, 'D'=Doctor, ''=Todos
-    rama           Código de rama: '431001'...'431004', ''=Todas
-    ambito         Código de ámbito de estudio ('' = todos)
-    estado         'P'=Publicado BOE, 'ACA'=Autorizado CA, ''=Todos
-    situacion      'A'=Alta (activa), 'T'=Extinguida, 'X'=A extinguir, ''=Todas
-    historico      'N'=No buscar histórico (default), 'S'=Incluir histórico
-    timeout        Segundos de espera máxima por petición HTTP
-    max_paginas    Número máximo de páginas a scrappear
-    progress_callback  Función(pagina_actual: int, total_filas: int) para reportar progreso
+    descripcion    Free-text search on the degree name
+    codigo         Numeric degree code (optional)
+    universidad    University code ('' = all)
+    tipo           Degree type: 'G'=Grado, 'M'=Máster, 'D'=Doctor, ''=all
+    rama           Branch code: '431001'..'431005', ''=all
+    ambito         Field-of-study code ('' = all)
+    estado         'P'=Published in BOE, 'ACA'=Authorised by region, ''=all
+    situacion      'A'=Active, 'T'=Extinct, 'X'=Being phased out, ''=all
+    historico      'N'=Current only (default), 'S'=Include historical records
+    timeout        Max seconds to wait per HTTP request
+    max_paginas    Maximum number of result pages to scrape
+    progress_callback  Optional callable(page: int, total_rows: int)
 
-    Devuelve
-    --------
-    (DataFrame, warning_str_or_None)
-    El DataFrame tiene columnas: codigo, titulo, universidad, nivel, estado, url_ruct
-    Si hay error o aviso, se devuelve un string descriptivo como segundo elemento.
+    Returns
+    -------
+    (DataFrame, warning_or_None)
+    DataFrame columns: codigo, titulo, universidad, nivel, estado, url_ruct
     """
     session = requests.Session()
     session.headers.update(HEADERS)
 
-    # Inicializar sesión (obtener JSESSIONID y cookies)
+    # Initialize session to obtain cookies
     try:
         session.get(FORM_URL, timeout=timeout)
     except requests.RequestException as e:
-        df_vacio = pd.DataFrame(
-            columns=COLUMNS_RESULTADOS
-        )
-        return df_vacio, f"No se pudo conectar al RUCT: {e}"
+        return pd.DataFrame(columns=RESULT_COLUMNS), f"No se pudo conectar al RUCT: {e}"
 
     payload = {
         "consulta": "1",
         "codigoEstudio": codigo.strip(),
-        "descripcionEstudio": _quitar_acentos(descripcion.strip()),
+        "descripcionEstudio": _strip_accents(descripcion.strip()),
         "codigoUniversidad": universidad,
         "codigoTipo": tipo,
         "codigoSubTipo": "",
@@ -184,11 +179,11 @@ def buscar_ruct(
         "action:listaestudios": "Consultar",
     }
 
-    resultados = []
+    results = []
     warning = None
 
     try:
-        # Página 1 — POST
+        # Page 1 — POST
         r = session.post(
             FORM_URL,
             data=payload,
@@ -198,20 +193,20 @@ def buscar_ruct(
         r.raise_for_status()
         soup = BeautifulSoup(r.text, "lxml")
 
-        filas = _parsear_tabla(soup)
-        resultados.extend(filas)
+        rows = _parse_table(soup)
+        results.extend(rows)
 
-        # Detectar si el RUCT no procesó la búsqueda (respuesta inesperada)
-        if not filas:
-            texto = soup.get_text()
-            tiene_marcador = (
-                "Ningún registro encontrado" in texto
-                or "Ningun registro encontrado" in texto
-                or "registros encontrados" in texto
+        # Detect if RUCT did not process the search (unexpected response)
+        if not rows:
+            page_text = soup.get_text()
+            has_marker = (
+                "Ningún registro encontrado" in page_text
+                or "Ningun registro encontrado" in page_text
+                or "registros encontrados" in page_text
             )
-            if not tiene_marcador:
+            if not has_marker:
                 return (
-                    pd.DataFrame(columns=COLUMNS_RESULTADOS),
+                    pd.DataFrame(columns=RESULT_COLUMNS),
                     "El RUCT no ha podido procesar la búsqueda. "
                     "Es posible que el servidor esté temporalmente no disponible "
                     "o que la aplicación no tenga acceso desde este servidor. "
@@ -219,31 +214,31 @@ def buscar_ruct(
                 )
 
         if progress_callback:
-            progress_callback(1, len(resultados))
+            progress_callback(1, len(results))
 
-        # Páginas 2..N — GET siguiendo el enlace "Siguiente"
-        for pagina in range(2, max_paginas + 1):
-            url_sig = _link_siguiente(soup)
-            if not url_sig:
-                break  # No hay más páginas
+        # Pages 2..N — GET following the "Siguiente" (Next) link
+        for page_num in range(2, max_paginas + 1):
+            next_url = _next_page_url(soup)
+            if not next_url:
+                break  # No more pages
 
-            time.sleep(0.4)  # Ser amable con el servidor
+            time.sleep(0.4)  # Be polite to the server
 
-            r = session.get(url_sig, timeout=timeout)
+            r = session.get(next_url, timeout=timeout)
             r.raise_for_status()
             soup = BeautifulSoup(r.text, "lxml")
 
-            filas = _parsear_tabla(soup)
-            if not filas:
+            rows = _parse_table(soup)
+            if not rows:
                 break
 
-            resultados.extend(filas)
+            results.extend(rows)
 
             if progress_callback:
-                progress_callback(pagina, len(resultados))
+                progress_callback(page_num, len(results))
 
         else:
-            # Se llegó al límite de páginas sin agotar resultados
+            # Page limit reached without exhausting all results
             warning = (
                 f"Se alcanzó el límite de {max_paginas} páginas. "
                 "Puede haber más resultados — reduce los filtros o aumenta el límite."
@@ -252,7 +247,7 @@ def buscar_ruct(
     except requests.Timeout:
         warning = (
             "Tiempo de espera agotado. "
-            f"Se muestran los {len(resultados)} resultados obtenidos hasta ahora."
+            f"Se muestran los {len(results)} resultados obtenidos hasta ahora."
         )
     except requests.ConnectionError as e:
         warning = f"Error de conexión con el RUCT: {e}"
@@ -260,31 +255,29 @@ def buscar_ruct(
         warning = f"El servidor del RUCT devolvió un error: {e}"
 
     df = (
-        pd.DataFrame(resultados)
-        if resultados
-        else pd.DataFrame(
-            columns=COLUMNS_RESULTADOS
-        )
+        pd.DataFrame(results)
+        if results
+        else pd.DataFrame(columns=RESULT_COLUMNS)
     )
     return df, warning
 
 
-# ─── Funciones auxiliares internas ───────────────────────────────────────────
+# ─── Internal helpers ────────────────────────────────────────────────────────
 
-def _parsear_tabla(soup: BeautifulSoup) -> list[dict]:
-    """Extrae todas las filas de datos de la tabla de resultados del RUCT."""
+def _parse_table(soup: BeautifulSoup) -> list[dict]:
+    """Extract all data rows from the RUCT results table."""
     table = soup.find("table")
     if not table:
         return []
 
-    filas = []
-    for tr in table.find_all("tr")[1:]:  # Saltar cabecera
-        celdas = tr.find_all("td")
-        if len(celdas) < 5:
+    rows = []
+    for tr in table.find_all("tr")[1:]:  # Skip header row
+        cells = tr.find_all("td")
+        if len(cells) < 5:
             continue
 
-        # El título puede tener un enlace al detalle
-        link_tag = celdas[1].find("a")
+        # The title cell may contain a link to the degree detail page
+        link_tag = cells[1].find("a")
         url_ruct = ""
         if link_tag and link_tag.get("href"):
             href = link_tag["href"]
@@ -294,58 +287,55 @@ def _parsear_tabla(soup: BeautifulSoup) -> list[dict]:
                 else f"https://www.educacion.gob.es{href}"
             )
 
-        filas.append(
-            {
-                "codigo": celdas[0].text.strip(),
-                "titulo": celdas[1].text.strip(),
-                "universidad": celdas[2].text.strip(),
-                "nivel": celdas[3].text.strip(),
-                "estado": celdas[4].text.strip(),
-                "url_ruct": url_ruct,
-            }
-        )
-    return filas
+        rows.append({
+            "codigo": cells[0].text.strip(),
+            "titulo": cells[1].text.strip(),
+            "universidad": cells[2].text.strip(),
+            "nivel": cells[3].text.strip(),
+            "estado": cells[4].text.strip(),
+            "url_ruct": url_ruct,
+        })
+    return rows
 
 
-def _link_siguiente(soup: BeautifulSoup) -> str | None:
+def _next_page_url(soup: BeautifulSoup) -> str | None:
     """
-    Devuelve la URL absoluta de la página siguiente en la paginación del RUCT,
-    o None si no existe el enlace 'Siguiente'.
+    Return the absolute URL of the next results page,
+    or None if there is no 'Siguiente' (Next) link.
     """
     for a in soup.find_all("a"):
-        texto = a.text.strip().lower()
-        if texto in ("siguiente", "next", "►", ">"):
+        text = a.text.strip().lower()
+        if text in ("siguiente", "next", "►", ">"):
             href = a.get("href", "")
             if not href:
                 continue
             if href.startswith("http"):
                 return href
-            # href relativo — puede ser "listaestudios?..." o "../listaestudios?..."
             if href.startswith("/"):
                 return f"https://www.educacion.gob.es{href}"
             return f"{BASE_URL}/{href}"
     return None
 
 
-# ─── Exportación ─────────────────────────────────────────────────────────────
+# ─── Export ──────────────────────────────────────────────────────────────────
 
-def exportar_csv(df: pd.DataFrame) -> bytes:
+def export_csv(df: pd.DataFrame) -> bytes:
     """
-    Devuelve el DataFrame como bytes CSV con BOM UTF-8
-    (compatible con Excel en Windows sin configuración adicional).
+    Return the DataFrame as UTF-8 BOM CSV bytes.
+    The BOM ensures Excel on Windows opens the file without encoding issues.
     """
     return df.to_csv(index=False).encode("utf-8-sig")
 
 
-def exportar_excel(df: pd.DataFrame) -> bytes:
+def export_excel(df: pd.DataFrame) -> bytes:
     """
-    Devuelve el DataFrame como bytes de un fichero Excel (.xlsx).
-    Requiere openpyxl instalado.
+    Return the DataFrame as an Excel (.xlsx) file in bytes.
+    Requires openpyxl to be installed.
     """
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name="Resultados RUCT")
-        # Auto-ajustar anchos de columna
+        # Auto-adjust column widths
         ws = writer.sheets["Resultados RUCT"]
         for col_cells in ws.columns:
             max_len = max(
@@ -356,29 +346,29 @@ def exportar_excel(df: pd.DataFrame) -> bytes:
     return buf.getvalue()
 
 
-# ─── Ejecución directa (test) ─────────────────────────────────────────────────
+# ─── Direct execution (test) ─────────────────────────────────────────────────
 
 if __name__ == "__main__":
     import sys
 
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 
-    print("Cargando opciones del formulario...")
-    opciones = cargar_opciones_formulario()
-    print(f"  Universidades: {len(opciones['universidades'])}")
-    print(f"  Ramas: {opciones['ramas']}")
+    print("Loading form options...")
+    options = load_form_options()
+    print(f"  Universities: {len(options['universidades'])}")
+    print(f"  Branches: {options['ramas']}")
 
-    print("\nBuscando 'Medicina' (Grado, activo)...")
-    df, warn = buscar_ruct(
+    print("\nSearching for 'Medicina' (Grado, active)...")
+    df, warn = search_ruct(
         descripcion="Medicina",
         tipo="G",
         estado="P",
         situacion="A",
         max_paginas=5,
-        progress_callback=lambda p, n: print(f"  Página {p} — {n} resultados"),
+        progress_callback=lambda p, n: print(f"  Page {p} — {n} results"),
     )
-    print(f"\nResultados: {len(df)}")
+    print(f"\nResults: {len(df)}")
     if warn:
-        print(f"Aviso: {warn}")
+        print(f"Warning: {warn}")
     if not df.empty:
         print(df[["codigo", "titulo", "universidad"]].head(5).to_string(index=False))
