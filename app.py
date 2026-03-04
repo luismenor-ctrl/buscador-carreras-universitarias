@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import logging
 import re
-import urllib.parse
 import requests
 from bs4 import BeautifulSoup
 import ruct_scraper
@@ -284,83 +283,54 @@ _RUCT_MODULES_URL = (
 )
 
 
-def _search_web(query: str) -> list[str]:
-    """Return top result URLs from DuckDuckGo for the given query."""
-    try:
-        url = "https://html.duckduckgo.com/html/?q=" + urllib.parse.quote(query)
-        r = requests.get(url, headers=_WEB_HEADERS, timeout=10)
-        soup = BeautifulSoup(r.text, "lxml")
-        urls = []
-        for a in soup.select("a.result__a")[:5]:
-            href = a.get("href", "")
-            if "uddg=" in href:
-                href = urllib.parse.unquote(href.split("uddg=")[1].split("&")[0])
-            if href.startswith("http"):
-                urls.append(href)
-        return urls
-    except Exception:
-        return []
-
-
-def _fetch_page_text(url: str, max_chars: int = 5000) -> str:
-    """Fetch a web page and return its main text content.
-    Prioritises <main> or <article> to avoid navigation noise."""
-    try:
-        r = requests.get(url, headers=_WEB_HEADERS, timeout=10)
-        if r.status_code >= 400:
-            return ""
-        soup = BeautifulSoup(r.text, "lxml")
-        for el in soup(["script", "style", "nav", "footer", "header"]):
-            el.decompose()
-        target = soup.find("main") or soup.find("article") or soup.body or soup
-        return target.get_text(separator="\n", strip=True)[:max_chars]
-    except Exception:
-        return ""
-
-
 def _boe_pdf_to_html(pdf_url: str) -> str:
-    """Convert a BOE PDF URL to its plain-text HTML equivalent.
-    e.g. http://www.boe.es/boe/dias/2022/01/03/pdfs/BOE-A-2022-134.pdf
-      -> https://www.boe.es/diario_boe/txt.php?id=BOE-A-2022-134
+    """Convert a BOE PDF URL to its HTML equivalent (txt.php).
+    e.g. .../pdfs/BOE-A-2013-7517.pdf -> https://www.boe.es/diario_boe/txt.php?id=BOE-A-2013-7517
     """
     m = re.search(r"(BOE-[A-Z]-\d{4}-\d+)\.pdf", pdf_url)
     return f"https://www.boe.es/diario_boe/txt.php?id={m.group(1)}" if m else ""
 
 
-def _fetch_ruct_detail(url_ruct: str) -> dict:
-    """Fetch the RUCT degree detail page and extract:
-    - texto: metadata text (credits, level, branch)
-    - url_boe_plan: HTML URL of the BOE 'Plan Estudios' resolution (most reliable source)
+def _fetch_boe_url_from_ruct(url_ruct: str, url_plan: str) -> str:
     """
-    if not url_ruct:
-        return {"texto": "", "url_boe_plan": None}
+    Get the BOE study plan HTML URL from the RUCT degree page.
+
+    Session flow:
+      1. GET consultaestudios.action    — init session
+      2. GET url_plan (lupa link)       — register this degree in server session
+      3. GET url_ruct (estudio.action)  — now returns full page including div#ttwo
+
+    div#ttwo contains the label 'Publicación Plan Estudios en el BOE' with the PDF link.
+    Returns the BOE HTML URL (txt.php), or "" on failure.
+    """
+    if not url_ruct or not url_plan:
+        return ""
     try:
-        r = requests.get(url_ruct, headers=_WEB_HEADERS, timeout=15)
+        session = requests.Session()
+        session.headers.update(_WEB_HEADERS)
+        session.get(_RUCT_INIT_URL, timeout=15)
+        session.get(url_plan, timeout=15)
+        r = session.get(url_ruct, timeout=15)
         r.raise_for_status()
         soup = BeautifulSoup(r.text, "lxml")
-        for el in soup(["script", "style", "nav", "footer", "header"]):
-            el.decompose()
-
-        # Find the BOE link whose surrounding context mentions "Plan Estudios"
-        url_boe_plan = None
-        for a in soup.find_all("a", href=True):
-            href = a["href"]
-            if "boe.es" not in href or ".pdf" not in href:
-                continue
-            # Walk up the DOM to find context text
-            el = a.parent
-            for _ in range(4):
-                if el and "Plan Estudios" in el.get_text():
-                    url_boe_plan = _boe_pdf_to_html(href)
-                    break
-                el = el.parent if el else None
-            if url_boe_plan:
-                break
-
-        texto = soup.get_text(separator="\n", strip=True)[:2000]
-        return {"texto": texto, "url_boe_plan": url_boe_plan}
+        ttwo = soup.find("div", id="ttwo")
+        if not ttwo:
+            return ""
+        # The label for="f_plan" wraps the 'Publicación Plan Estudios en el BOE' link
+        plan_label = ttwo.find("label", {"for": "f_plan"})
+        if plan_label:
+            a = plan_label.find("a", href=True)
+            if a:
+                return _boe_pdf_to_html(a["href"])
+        # Fallback: scan labels in div#ttwo for 'Plan Estudios'
+        for label in ttwo.find_all("label"):
+            if "Plan Estudios" in label.get_text():
+                a = label.find("a", href=True)
+                if a and "boe.es" in a["href"] and ".pdf" in a["href"]:
+                    return _boe_pdf_to_html(a["href"])
+        return ""
     except Exception:
-        return {"texto": "", "url_boe_plan": None}
+        return ""
 
 
 def _html_table_to_md(table) -> str:
@@ -378,9 +348,8 @@ def _html_table_to_md(table) -> str:
 
 def _fetch_boe_plan(url: str) -> str:
     """
-    Fetch a BOE txt.php page and extract the study plan content.
-    Targets div#textoxslt (the actual document area) and converts
-    HTML tables to Markdown format for clean display.
+    Fetch a BOE txt.php page and extract the study plan content from div#textoxslt.
+    Tables are converted to Markdown format for clean display.
     """
     try:
         r = requests.get(url, headers=_WEB_HEADERS, timeout=15)
@@ -422,12 +391,12 @@ def _fetch_boe_plan(url: str) -> str:
 
 def _fetch_ruct_modules(url_plan: str) -> str:
     """
-    Fetch the 'Módulos o Materias' page from RUCT for a given degree.
+    Fallback: fetch the 'Módulos o Materias' static page from RUCT.
 
     Session flow:
-      1. GET /ruct/consultaestudios.action  — initialise session
-      2. GET url_plan (lupa link)           — register this degree in server session
-      3. GET datosModulo                    — returns static HTML with full module list
+      1. GET consultaestudios.action  — init session
+      2. GET url_plan (lupa link)     — register degree in server session
+      3. GET datosModulo              — returns static HTML with module list
 
     Returns a markdown-formatted list of modules, or "" on failure.
     """
@@ -460,44 +429,28 @@ def _fetch_ruct_modules(url_plan: str) -> str:
 
 def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: str = "") -> dict:
     """
-    Locate the study plan using this source chain:
-      1. BOE 'Publicación Plan Estudios' (from RUCT detail) — complete plan with credits
-      2. RUCT 'Módulos o Materias' page — module names as fallback
-      3. DuckDuckGo search on the university's website as last resort
-    Returns {"ruct_text": str, "page_text": str, "source_url": str}
-    """
-    ruct_data = _fetch_ruct_detail(url_ruct) if url_ruct else {"texto": "", "url_boe_plan": None}
+    Locate the study plan for a RUCT degree.
 
-    # Step 1: BOE plan resolution — most complete (subjects, credits, type, semester)
-    boe_url = ruct_data.get("url_boe_plan")
+    Source chain:
+      1. Primary: BOE 'Publicación Plan Estudios' from RUCT div#ttwo (via session)
+         Complete plan: subjects, credits, type, temporal organisation.
+      2. Fallback: RUCT datosModulo page — list of module/subject names.
+
+    Returns {"page_text": str, "source_url": str}
+    """
+    # Step 1: RUCT degree page → BOE plan PDF → BOE HTML → extract div#textoxslt
+    boe_url = _fetch_boe_url_from_ruct(url_ruct, url_plan)
     if boe_url:
         plan_text = _fetch_boe_plan(boe_url)
         if plan_text:
-            return {"ruct_text": "", "page_text": plan_text, "source_url": boe_url}
+            return {"page_text": plan_text, "source_url": boe_url}
 
-    # Step 2: RUCT modules page — simpler list of module names
+    # Step 2: RUCT modules page (fallback — subject names only, no credits)
     modules_text = _fetch_ruct_modules(url_plan) if url_plan else ""
     if modules_text:
-        return {"ruct_text": "", "page_text": modules_text, "source_url": ""}
+        return {"page_text": modules_text, "source_url": ""}
 
-    # Step 3: DuckDuckGo fallback
-    page_text = ""
-    source_url = ""
-    for query in [
-        f'"{title}" "plan de estudios" {university}',
-        f"{title} plan de estudios {university}",
-    ]:
-        urls = _search_web(query)
-        for url in urls:
-            text = _fetch_page_text(url)
-            if len(text) > 400:
-                page_text = text
-                source_url = url
-                break
-        if page_text:
-            break
-
-    return {"ruct_text": ruct_data.get("texto", ""), "page_text": page_text, "source_url": source_url}
+    return {"page_text": "", "source_url": ""}
 
 
 # ─── Header ───────────────────────────────────────────────────────────────────
@@ -675,17 +628,11 @@ if df_res is not None:
 
             if plan.get("page_text"):
                 st.markdown(plan["page_text"])
-            elif plan.get("ruct_text"):
-                st.markdown(plan["ruct_text"])
-                st.markdown(
-                    '<div class="info-box">No se encontró la página del plan de estudios en la web '
-                    'de la universidad. Se muestran los datos oficiales del RUCT.</div>',
-                    unsafe_allow_html=True,
-                )
             else:
-                st.warning(
-                    "No se pudo localizar el plan de estudios. "
-                    "Prueba a buscar directamente en la web de la universidad."
+                st.markdown(
+                    '<div class="warn-box">⚠️ No se pudo obtener el plan de estudios. '
+                    'Consulta la ficha oficial usando el botón «Ver ficha en el RUCT →» de arriba.</div>',
+                    unsafe_allow_html=True,
                 )
 
         # ── Results list ───────────────────────────────────────────────────────
