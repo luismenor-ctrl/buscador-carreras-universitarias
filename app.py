@@ -218,11 +218,31 @@ st.markdown("""
         margin-top: 0.5rem;
     }
 
-    /* Results table */
-    .stDataFrame {
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-lg);
-        overflow: hidden;
+    /* Results list */
+    .result-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    .result-list li {
+        padding: 0.75rem 0;
+        border-bottom: 1px solid var(--color-border);
+        display: flex;
+        flex-direction: column;
+    }
+    .result-list li:last-child { border-bottom: none; }
+    .result-list li a {
+        font-size: 0.95rem;
+        font-weight: 500;
+        color: var(--color-accent);
+        text-decoration: none;
+        line-height: 1.4;
+    }
+    .result-list li a:hover { color: var(--color-accent-dark); }
+    .result-univ {
+        font-size: 0.78rem;
+        color: var(--color-text-secondary);
+        margin-top: 0.15rem;
     }
 
     /* Warning / info boxes */
@@ -388,11 +408,6 @@ if submitted:
     st.session_state["df_resultados"] = df
     st.session_state["warning_scraper"] = warning
     st.session_state["last_search_term"] = search_term.strip()
-    st.session_state["csv_bytes"] = ruct_scraper.export_csv(df)
-    try:
-        st.session_state["excel_bytes"] = ruct_scraper.export_excel(df)
-    except ImportError:
-        st.session_state["excel_bytes"] = None
 
 
 # ─── Display results ──────────────────────────────────────────────────────────
@@ -434,61 +449,35 @@ if df_res is not None:
 
         st.divider()
 
-        # Download buttons
-        col_dl1, col_dl2 = st.columns(2)
-        with col_dl1:
-            st.download_button(
-                label="Descargar CSV",
-                data=st.session_state["csv_bytes"],
-                file_name="resultados_ruct.csv",
-                mime="text/csv",
-                use_container_width=True,
-            )
-        with col_dl2:
-            if st.session_state.get("excel_bytes"):
-                st.download_button(
-                    label="Descargar Excel",
-                    data=st.session_state["excel_bytes"],
-                    file_name="resultados_ruct.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True,
-                )
-            else:
-                st.info("Instala openpyxl para exportar a Excel: `pip install openpyxl`")
-
-        st.divider()
-
-        # Results table
-        df_display = df_res[["codigo", "titulo", "universidad", "nivel", "estado"]].rename(columns={
-            "codigo": "Código",
-            "titulo": "Título",
-            "universidad": "Universidad",
-            "nivel": "Nivel",
-            "estado": "Estado",
-        })
-        st.dataframe(df_display, use_container_width=True, hide_index=True)
-
-        # Expandable detail per result (shows link to RUCT)
-        st.markdown("---")
-        st.markdown("**Ver detalle en el RUCT**")
+        # Pagination controls
+        page_size = 25
+        total_pages = max(1, (n - 1) // page_size + 1)
         detail_page = st.number_input(
-            "Página (25 resultados por página)",
+            f"Página (de {total_pages})",
             min_value=1,
-            max_value=max(1, (n - 1) // 25 + 1),
+            max_value=total_pages,
             value=1,
             step=1,
         )
-        start = (detail_page - 1) * 25
-        end = min(start + 25, n)
+        start = (detail_page - 1) * page_size
+        end = min(start + page_size, n)
+        st.caption(f"Mostrando {start + 1}–{end} de {n} resultados")
 
+        # Results list — each title links to its RUCT page
+        items_html = ""
         for _, row in df_res.iloc[start:end].iterrows():
-            label = f"{row['titulo']} — {row['universidad']}"
-            with st.expander(label):
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    st.markdown(f"**Código:** `{row['codigo']}`")
-                    st.markdown(f"**Nivel:** {row['nivel']}")
-                    st.markdown(f"**Estado:** {row['estado']}")
-                with col_b:
-                    if row.get("url_ruct"):
-                        st.markdown(f"[Ver en el RUCT]({row['url_ruct']})")
+            title = row["titulo"]
+            univ = row["universidad"]
+            url = row.get("url_ruct", "")
+            if url:
+                items_html += (
+                    f'<li><a href="{url}" target="_blank" rel="noopener">{title}</a>'
+                    f'<span class="result-univ">{univ}</span></li>'
+                )
+            else:
+                items_html += (
+                    f'<li><span style="font-weight:500">{title}</span>'
+                    f'<span class="result-univ">{univ}</span></li>'
+                )
+
+        st.markdown(f'<ul class="result-list">{items_html}</ul>', unsafe_allow_html=True)
