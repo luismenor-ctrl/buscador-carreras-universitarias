@@ -297,44 +297,92 @@ def _search_web(query: str) -> list[str]:
 
 
 def _fetch_page_text(url: str) -> str:
-    """Fetch a web page and return its main text content (up to 5 000 chars)."""
+    """Fetch a web page and return its main text content (up to 5 000 chars).
+    Prioritises <main> or <article> to avoid navigation noise."""
     try:
         r = requests.get(url, headers=_WEB_HEADERS, timeout=10)
+        if r.status_code >= 400:
+            return ""
         soup = BeautifulSoup(r.text, "lxml")
         for el in soup(["script", "style", "nav", "footer", "header"]):
             el.decompose()
-        return soup.get_text(separator="\n", strip=True)[:5000]
+        target = soup.find("main") or soup.find("article") or soup.body or soup
+        return target.get_text(separator="\n", strip=True)[:5000]
     except Exception:
         return ""
 
 
-def _get_study_plan(title: str, university: str) -> dict:
+def _fetch_ruct_detail(url_ruct: str) -> dict:
+    """Fetch the RUCT degree detail page and return its metadata as plain text.
+    The RUCT page contains credit breakdown, level, branch and BOE dates but
+    does not link to the university's own website, so url_universidad is always None."""
+    if not url_ruct:
+        return {"texto": "", "url_universidad": None}
+    try:
+        r = requests.get(url_ruct, headers=_WEB_HEADERS, timeout=15)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.text, "lxml")
+        for el in soup(["script", "style", "nav", "footer", "header"]):
+            el.decompose()
+        # Extract any external link that is not a government/BOE domain
+        url_universidad = None
+        skip = ("educacion.gob.es", "boe.es", "ciencia.gob.es", "universidades.gob.es")
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if href.startswith("http") and not any(d in href for d in skip):
+                url_universidad = href
+                break
+        texto = soup.get_text(separator="\n", strip=True)[:3000]
+        return {"texto": texto, "url_universidad": url_universidad}
+    except Exception:
+        return {"texto": "", "url_universidad": None}
+
+
+def _get_study_plan(title: str, university: str, url_ruct: str = "") -> dict:
     """
-    Search the web for the degree's study plan and use Claude to present
-    the information clearly.
+    Build a study plan for the given degree using a source chain:
+      1. RUCT detail page (official metadata: credits, branch, level)
+      2. University web page found via DuckDuckGo (or from RUCT if available)
+      3. Claude's own knowledge as final fallback
     """
     api_key = st.secrets.get("ANTHROPIC_API_KEY", "")
     if not api_key:
         return {"error": "no_api_key"}
 
-    # Step 1: web search for the study plan page
-    urls = _search_web(f"{title} plan de estudios {university}")
+    # Step 1: RUCT detail page
+    ruct_data = _fetch_ruct_detail(url_ruct) if url_ruct else {"texto": "", "url_universidad": None}
+    ruct_text = ruct_data.get("texto", "")
+
+    # Step 2: University web content
     page_text = ""
     source_url = ""
-    for url in urls:
-        text = _fetch_page_text(url)
-        if len(text) > 300:
-            page_text = text
-            source_url = url
-            break
 
-    context = (
-        f"Información extraída de: {source_url}\n\n{page_text}"
-        if page_text
-        else "No se encontró contenido web adicional."
-    )
+    # Try a URL extracted directly from the RUCT page (rare, but possible)
+    univ_url = ruct_data.get("url_universidad")
+    if univ_url:
+        page_text = _fetch_page_text(univ_url)
+        if page_text:
+            source_url = univ_url
 
-    # Step 2: Claude processes the content and presents the study plan
+    # Fallback to DuckDuckGo
+    if not page_text:
+        urls = _search_web(f"{title} plan de estudios {university}")
+        for url in urls:
+            text = _fetch_page_text(url)
+            if len(text) > 300:
+                page_text = text
+                source_url = url
+                break
+
+    # Step 3: Build context for Claude
+    context_parts = []
+    if ruct_text:
+        context_parts.append(f"--- Ficha oficial RUCT ---\n{ruct_text}")
+    if page_text:
+        context_parts.append(f"--- Web universidad ({source_url}) ---\n{page_text}")
+    context = "\n\n".join(context_parts) if context_parts else "No se encontró contenido adicional."
+
+    # Step 4: Claude presents the study plan
     prompt = f"""Eres un asistente experto en educación universitaria española.
 
 Titulación: {title}
@@ -513,7 +561,7 @@ if df_res is not None:
             if plan_key not in st.session_state["study_plans"]:
                 with st.spinner("Buscando el plan de estudios..."):
                     st.session_state["study_plans"][plan_key] = _get_study_plan(
-                        selected["title"], selected["university"]
+                        selected["title"], selected["university"], selected.get("url_ruct", "")
                     )
 
             plan = st.session_state["study_plans"][plan_key]
@@ -568,5 +616,6 @@ if df_res is not None:
                         st.session_state["selected_degree"] = {
                             "title": row["titulo"],
                             "university": row["universidad"],
+                            "url_ruct": row.get("url_ruct", ""),
                         }
                         st.rerun()
