@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.educacion.gob.es/ruct"
 FORM_URL = f"{BASE_URL}/consultaestudios.action"
-RESULTS_URL = f"{BASE_URL}/listaestudios"  # sin .action — la paginación usa GET
 
 HEADERS = {
     "User-Agent": (
@@ -65,6 +64,8 @@ SITUACIONES = {
     "X": "Titulación a Extinguir",
 }
 
+COLUMNS_RESULTADOS = ["codigo", "titulo", "universidad", "nivel", "estado", "url_ruct"]
+
 
 def _quitar_acentos(texto: str) -> str:
     """
@@ -86,9 +87,7 @@ def cargar_opciones_formulario(timeout: int = 20) -> dict:
     Si hay error de conexión, devuelve los valores predefinidos (sin universidades individuales).
     """
     try:
-        session = requests.Session()
-        session.headers.update(HEADERS)
-        r = session.get(FORM_URL, timeout=timeout)
+        r = requests.get(FORM_URL, headers=HEADERS, timeout=timeout)
         r.raise_for_status()
         soup = BeautifulSoup(r.text, "lxml")
 
@@ -166,7 +165,7 @@ def buscar_ruct(
         session.get(FORM_URL, timeout=timeout)
     except requests.RequestException as e:
         df_vacio = pd.DataFrame(
-            columns=["codigo", "titulo", "universidad", "nivel", "estado", "url_ruct"]
+            columns=COLUMNS_RESULTADOS
         )
         return df_vacio, f"No se pudo conectar al RUCT: {e}"
 
@@ -201,6 +200,23 @@ def buscar_ruct(
 
         filas = _parsear_tabla(soup)
         resultados.extend(filas)
+
+        # Detectar si el RUCT no procesó la búsqueda (respuesta inesperada)
+        if not filas:
+            texto = soup.get_text()
+            tiene_marcador = (
+                "Ningún registro encontrado" in texto
+                or "Ningun registro encontrado" in texto
+                or "registros encontrados" in texto
+            )
+            if not tiene_marcador:
+                return (
+                    pd.DataFrame(columns=COLUMNS_RESULTADOS),
+                    "El RUCT no ha podido procesar la búsqueda. "
+                    "Es posible que el servidor esté temporalmente no disponible "
+                    "o que la aplicación no tenga acceso desde este servidor. "
+                    "Por favor, inténtalo de nuevo en unos minutos.",
+                )
 
         if progress_callback:
             progress_callback(1, len(resultados))
@@ -247,7 +263,7 @@ def buscar_ruct(
         pd.DataFrame(resultados)
         if resultados
         else pd.DataFrame(
-            columns=["codigo", "titulo", "universidad", "nivel", "estado", "url_ruct"]
+            columns=COLUMNS_RESULTADOS
         )
     )
     return df, warning
@@ -318,8 +334,7 @@ def exportar_csv(df: pd.DataFrame) -> bytes:
     Devuelve el DataFrame como bytes CSV con BOM UTF-8
     (compatible con Excel en Windows sin configuración adicional).
     """
-    csv_str = df.to_csv(index=False, encoding="utf-8-sig")
-    return csv_str.encode("utf-8-sig")
+    return df.to_csv(index=False).encode("utf-8-sig")
 
 
 def exportar_excel(df: pd.DataFrame) -> bytes:

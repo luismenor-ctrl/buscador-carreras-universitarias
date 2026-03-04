@@ -19,6 +19,7 @@ st.markdown("""
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
     :root {
+        color-scheme: light;
         --color-bg: #FFFFFF;
         --color-surface: #FAFAFA;
         --color-border: #E5E5E5;
@@ -64,12 +65,6 @@ st.markdown("""
         background: var(--color-bg);
     }
 
-    /* Sidebar (no se usa en este flujo, pero por si acaso) */
-    [data-testid="stSidebar"] {
-        background: var(--color-surface);
-        border-right: 1px solid var(--color-border);
-    }
-
     /* Métricas */
     div[data-testid="metric-container"] {
         background: var(--color-bg);
@@ -88,34 +83,6 @@ st.markdown("""
         color: var(--color-text-secondary);
         text-transform: uppercase;
         letter-spacing: 0.04em;
-    }
-
-    /* Tabs */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 0;
-        background: transparent;
-        border-bottom: 1px solid var(--color-border);
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
-        flex-wrap: nowrap;
-    }
-    .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar { display: none; }
-    .stTabs [data-baseweb="tab"] {
-        background: transparent;
-        border: none;
-        border-bottom: 2px solid transparent;
-        border-radius: 0;
-        color: var(--color-text-secondary);
-        font-weight: 500;
-        font-size: 0.875rem;
-        padding: 0.75rem 0.875rem;
-        white-space: nowrap;
-    }
-    .stTabs [aria-selected="true"] {
-        color: var(--color-accent) !important;
-        background: transparent !important;
-        border-bottom-color: var(--color-accent) !important;
     }
 
     /* Expanders */
@@ -192,11 +159,12 @@ st.markdown("""
         padding: 1.25rem 0 1rem;
         border-bottom: 1px solid var(--color-border);
         margin-bottom: 1.5rem;
+        background-color: #FFFFFF;
     }
     .header-title {
         font-size: 1.5rem;
         font-weight: 700;
-        color: var(--color-text-primary);
+        color: #171717 !important;
         margin: 0;
         letter-spacing: -0.02em;
         text-align: center;
@@ -204,7 +172,7 @@ st.markdown("""
     .header-subtitle {
         text-align: center;
         font-size: 0.875rem;
-        color: var(--color-text-secondary);
+        color: #737373 !important;
         margin: 0.375rem 0 0.75rem;
     }
     .header-badges {
@@ -299,7 +267,6 @@ st.markdown("""
             padding: 0.5rem 0.75rem 2rem 0.75rem;
         }
         .header-title { font-size: 1.25rem; }
-        .form-section { padding: 1rem; }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -309,6 +276,12 @@ st.markdown("""
 @st.cache_data(ttl=3600, show_spinner="Conectando con el RUCT...")
 def _cargar_opciones():
     return ruct_scraper.cargar_opciones_formulario(timeout=20)
+
+
+def _preparar_opciones(lista: list) -> tuple:
+    display = [texto for texto, _ in lista]
+    values = {texto: val for texto, val in lista}
+    return display, values
 
 
 # ─── Header ───────────────────────────────────────────────────────────────────
@@ -336,17 +309,9 @@ except Exception:
 
 # Preparar listas para los selectbox
 if opciones:
-    univ_lista = [(texto, val) for texto, val in opciones["universidades"]]
-    univ_display = [texto for texto, val in univ_lista]
-    univ_values  = {texto: val for texto, val in univ_lista}
-
-    rama_lista = [(texto, val) for texto, val in opciones["ramas"]]
-    rama_display = [texto for texto, val in rama_lista]
-    rama_values  = {texto: val for texto, val in rama_lista}
-
-    tipo_lista = [(texto, val) for texto, val in opciones["tipos"]]
-    tipo_display = [texto for texto, val in tipo_lista]
-    tipo_values  = {texto: val for texto, val in tipo_lista}
+    univ_display, univ_values = _preparar_opciones(opciones["universidades"])
+    rama_display, rama_values = _preparar_opciones(opciones["ramas"])
+    tipo_display, tipo_values = _preparar_opciones(opciones["tipos"])
 else:
     univ_display = ["Todas"]
     univ_values  = {"Todas": ""}
@@ -369,7 +334,6 @@ with st.form("busqueda_ruct"):
         placeholder="Ej: Ingeniería Informática, Medicina...",
         help="Busca por palabras en el nombre oficial del título",
     )
-    codigo = ""
 
     col3, col4, col5 = st.columns(3)
     with col3:
@@ -409,7 +373,7 @@ if submitted:
     with st.spinner("Consultando el RUCT... esto puede tardar unos segundos."):
         df, warning = ruct_scraper.buscar_ruct(
             descripcion=descripcion,
-            codigo=codigo,
+            codigo="",
             universidad=univ_val,
             tipo=tipo_val,
             rama=rama_val,
@@ -422,6 +386,12 @@ if submitted:
 
     st.session_state["df_resultados"] = df
     st.session_state["warning_scraper"] = warning
+    st.session_state["last_descripcion"] = descripcion.strip()
+    st.session_state["csv_bytes"] = ruct_scraper.exportar_csv(df)
+    try:
+        st.session_state["excel_bytes"] = ruct_scraper.exportar_excel(df)
+    except ImportError:
+        st.session_state["excel_bytes"] = None
 
 
 # ─── Mostrar resultados ───────────────────────────────────────────────────────
@@ -436,11 +406,21 @@ if df_res is not None:
         )
 
     if df_res.empty:
-        st.markdown(
-            '<div class="info-box">No se encontraron resultados con los filtros seleccionados. '
-            'Prueba a ampliar la búsqueda o cambiar los parámetros.</div>',
-            unsafe_allow_html=True,
-        )
+        last_desc = st.session_state.get("last_descripcion", "")
+        if last_desc:
+            st.markdown(
+                '<div class="warn-box">⚠️ El RUCT no devolvió resultados para tu búsqueda. '
+                'Si el término es habitual (p.ej. «Ingeniería», «Medicina»), '
+                'es posible que el servidor del RUCT esté temporalmente no disponible. '
+                'Por favor, espera unos minutos e inténtalo de nuevo.</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                '<div class="info-box">No se encontraron resultados con los filtros seleccionados. '
+                'Prueba a ampliar la búsqueda o cambiar los parámetros.</div>',
+                unsafe_allow_html=True,
+            )
     else:
         n = len(df_res)
 
@@ -452,51 +432,42 @@ if df_res is not None:
             n_univ = df_res["universidad"].nunique()
             st.metric("Universidades", f"{n_univ:,}")
 
-        st.markdown("<hr>", unsafe_allow_html=True)
+        st.divider()
 
         # Botones de descarga
         col_dl1, col_dl2 = st.columns(2)
         with col_dl1:
-            csv_bytes = ruct_scraper.exportar_csv(df_res)
             st.download_button(
                 label="Descargar CSV",
-                data=csv_bytes,
+                data=st.session_state["csv_bytes"],
                 file_name="resultados_ruct.csv",
                 mime="text/csv",
                 use_container_width=True,
             )
         with col_dl2:
-            try:
-                excel_bytes = ruct_scraper.exportar_excel(df_res)
+            if st.session_state.get("excel_bytes"):
                 st.download_button(
                     label="Descargar Excel",
-                    data=excel_bytes,
+                    data=st.session_state["excel_bytes"],
                     file_name="resultados_ruct.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True,
                 )
-            except ImportError:
+            else:
                 st.info("Instala openpyxl para exportar a Excel: `pip install openpyxl`")
 
-        st.markdown("<hr>", unsafe_allow_html=True)
+        st.divider()
 
         # Tabla de resultados
-        # Renombrar columnas para visualización
-        df_display = df_res.rename(columns={
+        df_display = df_res[["codigo", "titulo", "universidad", "nivel", "estado"]].rename(columns={
             "codigo": "Código",
             "titulo": "Título",
             "universidad": "Universidad",
             "nivel": "Nivel",
             "estado": "Estado",
-            "url_ruct": "URL RUCT",
         })
 
-        # Mostrar tabla con la columna URL como enlace (HTML)
-        st.dataframe(
-            df_display.drop(columns=["URL RUCT"]),
-            use_container_width=True,
-            hide_index=True,
-        )
+        st.dataframe(df_display, use_container_width=True, hide_index=True)
 
         # Detalle expandible por cada resultado (muestra el enlace al RUCT)
         st.markdown("---")
