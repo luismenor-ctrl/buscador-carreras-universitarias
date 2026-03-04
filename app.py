@@ -363,27 +363,23 @@ def _fetch_boe_plan(url: str) -> str:
             el.decompose()
 
         parts = []
-        seen_tables: set = set()
+        past_first_table = False
 
-        def _process(node) -> None:
-            for child in node.children:
-                if not hasattr(child, "name") or not child.name:
-                    continue
-                if child.name == "table":
-                    tid = id(child)
-                    if tid not in seen_tables:
-                        seen_tables.add(tid)
-                        md = _html_table_to_md(child)
-                        if md:
-                            parts.append(md)
-                elif child.name in ("p", "h2", "h3", "h4"):
-                    text = child.get_text(strip=True)
-                    if text:
-                        parts.append(text)
-                else:
-                    _process(child)
+        for el in content.find_all(["table", "p", "h2", "h3", "h4"]):
+            # Skip elements that are nested inside a table (already handled by _html_table_to_md)
+            if el.find_parent("table"):
+                continue
+            if el.name == "table":
+                past_first_table = True
+                md = _html_table_to_md(el)
+                if md:
+                    parts.append(md)
+            elif past_first_table:
+                # Include text only after the first table (skip the legal preamble)
+                text = el.get_text(strip=True)
+                if text:
+                    parts.append(text)
 
-        _process(content)
         return "\n\n".join(parts)[:12000]
     except Exception:
         return ""
