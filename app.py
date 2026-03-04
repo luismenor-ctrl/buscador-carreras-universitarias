@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import logging
+import urllib.parse
 import ruct_scraper
 
 logging.basicConfig(level=logging.INFO)
@@ -463,21 +464,16 @@ if df_res is not None:
         end = min(start + page_size, n)
         st.caption(f"Mostrando {start + 1}–{end} de {n} resultados")
 
-        # Results list — each title links to its RUCT page
+        # Results list — each title links to a Google search for its study plan
         items_html = ""
         for _, row in df_res.iloc[start:end].iterrows():
             title = row["titulo"]
             univ = row["universidad"]
-            url = row.get("url_ruct", "")
-            if url:
-                items_html += (
-                    f'<li><a href="{url}" target="_blank" rel="noopener">{title}</a>'
-                    f'<span class="result-univ">{univ}</span></li>'
-                )
-            else:
-                items_html += (
-                    f'<li><span style="font-weight:500">{title}</span>'
-                    f'<span class="result-univ">{univ}</span></li>'
-                )
+            query = urllib.parse.quote(f'"{title}" plan de estudios {univ}')
+            url = f"https://www.google.com/search?q={query}"
+            items_html += (
+                f'<li><a href="{url}" target="_blank" rel="noopener">{title}</a>'
+                f'<span class="result-univ">{univ}</span></li>'
+            )
 
         st.markdown(f'<ul class="result-list">{items_html}</ul>', unsafe_allow_html=True)
