@@ -21,8 +21,13 @@ st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
+    /* Force light mode — prevents macOS/iOS dark mode from affecting the app */
+    html {
+        color-scheme: light only !important;
+    }
+
     :root {
-        color-scheme: light;
+        color-scheme: light only;
         --color-bg: #FFFFFF;
         --color-surface: #FAFAFA;
         --color-border: #E5E5E5;
@@ -36,6 +41,16 @@ st.markdown("""
         --color-success-light: #D1FAE5;
         --color-warning: #F59E0B;
         --radius-lg: 0.75rem;
+    }
+
+    /* Override any dark-mode theme Streamlit may inject */
+    @media (prefers-color-scheme: dark) {
+        html, body, .stApp, [data-testid="stAppViewContainer"],
+        [data-testid="stHeader"], [data-testid="stSidebar"],
+        .main, .main .block-container {
+            background-color: #FFFFFF !important;
+            color: #171717 !important;
+        }
     }
 
     body, p, h1, h2, h3, h4, h5, h6, div, label, button,
@@ -59,20 +74,26 @@ st.markdown("""
         min-height: 44px !important;
     }
 
-    .stApp { background: #FFFFFF; }
+    .stApp {
+        background: #FFFFFF !important;
+        color: #171717 !important;
+        color-scheme: light only !important;
+    }
 
     .main .block-container {
         padding: 3.5rem 1rem 2rem 1rem;
         max-width: 800px;
-        background: #FFFFFF;
+        background: #FFFFFF !important;
+        color: #171717 !important;
     }
 
     /* Metrics */
     div[data-testid="metric-container"] {
-        background: #FFFFFF;
+        background: #FFFFFF !important;
         padding: 0.875rem;
         border-radius: var(--radius-lg);
-        border: 1px solid var(--color-border);
+        border: 1px solid #E5E5E5 !important;
+        color: #171717 !important;
     }
     [data-testid="stMetricValue"] {
         font-size: 1.5rem !important;
