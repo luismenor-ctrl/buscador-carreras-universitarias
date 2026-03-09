@@ -398,7 +398,7 @@ def _html_table_to_md(table) -> str:
 def _fetch_boe_plan(url: str) -> str:
     """
     Fetch a BOE txt.php page and extract the study plan content from div#textoxslt.
-    Tables are converted to Markdown format for clean display.
+    Tables are converted to Markdown. For text-only documents, extracts plain text.
     """
     try:
         r = requests.get(url, headers=_WEB_HEADERS, timeout=15)
@@ -415,7 +415,6 @@ def _fetch_boe_plan(url: str) -> str:
         past_first_table = False
 
         for el in content.find_all(["table", "p", "h2", "h3", "h4"]):
-            # Skip elements that are nested inside a table (already handled by _html_table_to_md)
             if el.find_parent("table"):
                 continue
             if el.name == "table":
@@ -424,12 +423,21 @@ def _fetch_boe_plan(url: str) -> str:
                 if md:
                     parts.append(md)
             elif past_first_table:
-                # Include text only after the first table (skip the legal preamble)
                 text = el.get_text(strip=True)
                 if text:
                     parts.append(text)
 
-        return "\n\n".join(parts)[:12000]
+        # If no tables found, fall back to full text (skip first paragraph = legal preamble)
+        if not parts:
+            paragraphs = [
+                el.get_text(strip=True)
+                for el in content.find_all(["p", "h2", "h3", "h4"])
+                if not el.find_parent("table") and el.get_text(strip=True)
+            ]
+            if len(paragraphs) > 2:
+                parts = paragraphs[2:]   # skip opening legal text
+
+        return "\n\n".join(parts)[:14000]
     except Exception:
         return ""
 
@@ -484,13 +492,17 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
         plan_text = _fetch_boe_plan(boe_url)
         if plan_text:
             return {"ficha": ficha, "page_text": plan_text, "source_url": boe_url}
+        # BOE URL found but extraction failed — still expose the URL so user can open it
+        modules_text = _fetch_ruct_modules(url_plan) if url_plan else ""
+        return {
+            "ficha": ficha,
+            "page_text": modules_text,
+            "source_url": boe_url,          # always show BOE button
+        }
 
-    # Fallback: RUCT modules page (subject names only, no credits)
+    # No BOE URL — try RUCT modules page as sole source
     modules_text = _fetch_ruct_modules(url_plan) if url_plan else ""
-    if modules_text:
-        return {"ficha": ficha, "page_text": modules_text, "source_url": ""}
-
-    return {"ficha": ficha, "page_text": "", "source_url": ""}
+    return {"ficha": ficha, "page_text": modules_text, "source_url": ""}
 
 
 # ─── Header ───────────────────────────────────────────────────────────────────
@@ -705,6 +717,12 @@ if df_res is not None:
 
             if plan.get("page_text"):
                 st.markdown(plan["page_text"])
+            elif plan.get("source_url"):
+                st.markdown(
+                    '<div class="info-box">El plan de estudios está disponible en el BOE. '
+                    'Pulsa el botón de arriba para consultarlo directamente.</div>',
+                    unsafe_allow_html=True,
+                )
             else:
                 st.markdown(
                     '<div class="warn-box">⚠️ No se pudo obtener el plan de estudios. '
