@@ -475,7 +475,7 @@ st.markdown("""
 <div class="header-container">
     <h1 class="header-title">Buscador de Carreras Universitarias Oficiales en España</h1>
     <p class="header-subtitle">
-        Consulta en tiempo real el RUCT — Registro oficial del Ministerio de Educación
+        Consulta en tiempo real en el registro oficial del Ministerio de Educación
     </p>
     <div class="header-badges">
         <span class="badge badge-country">España</span>
