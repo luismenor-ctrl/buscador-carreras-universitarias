@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.WARNING)
 
 # ─── Page configuration ───────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Buscador RUCT — Carreras Universitarias España",
+    page_title="Buscador de Carreras Universitarias Oficiales en España",
     page_icon="🎓",
     layout="centered",
     initial_sidebar_state="collapsed",
@@ -473,7 +473,7 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
 # ─── Header ───────────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="header-container">
-    <h1 class="header-title">Buscador de Carreras Universitarias</h1>
+    <h1 class="header-title">Buscador de Carreras Universitarias Oficiales en España</h1>
     <p class="header-subtitle">
         Consulta en tiempo real el RUCT — Registro oficial del Ministerio de Educación
     </p>

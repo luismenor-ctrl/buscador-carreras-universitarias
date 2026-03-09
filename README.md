@@ -1,4 +1,4 @@
-# 🎓 Buscador de Carreras Universitarias en España
+# 🎓 Buscador de Carreras Universitarias Oficiales en España
 
 Aplicación web minimalista para buscar y comparar carreras universitarias en España.
 
