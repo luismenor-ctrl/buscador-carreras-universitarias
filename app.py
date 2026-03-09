@@ -88,10 +88,10 @@ st.markdown("""
         opacity: 0.92;
     }
     .header-title {
-        font-size: 1.05rem;
-        font-weight: 700;
+        font-size: 1.05rem !important;
+        font-weight: 700 !important;
         color: var(--c-text) !important;
-        margin: 0;
+        margin: 0 !important;
         letter-spacing: -0.01em;
         line-height: 1.3;
     }
@@ -101,10 +101,16 @@ st.markdown("""
         margin: 0;
         letter-spacing: 0.01em;
     }
-    @media (max-width: 520px) {
-        .header-logo { height: 60px; }
-        .header-title { font-size: 0.95rem; }
-        .main .block-container { padding: 0 0.75rem 2rem; }
+    /* Responsive title */
+    @media (max-width: 768px) {
+        .header-title { font-size: 0.88rem !important; }
+        .header-logo { height: 64px; }
+    }
+    @media (max-width: 480px) {
+        .header-title { font-size: 0.78rem !important; }
+        .header-logo { height: 52px; }
+        .main .block-container { padding: 0 0.5rem 2rem; }
+        .header-sub { font-size: 0.72rem; }
     }
 
     /* ── Search form ── */
@@ -695,6 +701,19 @@ elif selected:
 # STATE 3 - RESULTS (search done, no degree selected)
 # =====================================================================
 elif df_res is not None:
+    # Scroll to top of page when results load
+    st.markdown(
+        '<script>'
+        'setTimeout(function(){'
+        '  var el = window.parent.document.querySelector("section.main") || '
+        '           window.parent.document.querySelector(".main") || '
+        '           window.parent.document.body;'
+        '  if(el) el.scrollTop = 0;'
+        '  window.parent.scrollTo(0,0);'
+        '}, 50);'
+        '</script>',
+        unsafe_allow_html=True,
+    )
     if warning:
         st.markdown(f'<div class="warn-box">⚠️ {warning}</div>', unsafe_allow_html=True)
 
