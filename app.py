@@ -138,6 +138,7 @@ st.markdown("""
     .stTextInput > div > div > input {
         border-color: var(--color-border) !important;
         border-radius: var(--radius-lg) !important;
+        background: #FFFFFF !important;
         min-height: 44px;
     }
 
@@ -521,7 +522,7 @@ with st.form("busqueda_ruct"):
         help="Busca por palabras en el nombre oficial del título",
     )
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     with col1:
         tipo_sel = st.selectbox(
             "Nivel académico",
@@ -529,11 +530,6 @@ with st.form("busqueda_ruct"):
             index=tipo_display.index("Grado") if "Grado" in tipo_display else 0,
         )
     with col2:
-        rama_sel = st.selectbox(
-            "Rama de conocimiento",
-            options=rama_display,
-        )
-    with col3:
         univ_sel = st.selectbox(
             "Universidad",
             options=univ_display,
@@ -553,7 +549,6 @@ with st.form("busqueda_ruct"):
 # ─── Run search ───────────────────────────────────────────────────────────────
 if submitted:
     tipo_val = tipo_values.get(tipo_sel, "")
-    rama_val = rama_values.get(rama_sel, "")
     univ_val = univ_values.get(univ_sel, "")
 
     with st.spinner("Consultando el RUCT... esto puede tardar unos segundos."):
@@ -562,7 +557,7 @@ if submitted:
             codigo="",
             universidad=univ_val,
             tipo=tipo_val,
-            rama=rama_val,
+            rama="",
             estado="P",
             situacion="A",
             historico="N",
