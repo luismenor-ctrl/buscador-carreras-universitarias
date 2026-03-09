@@ -543,231 +543,237 @@ else:
     tipo_values  = {"Todos": "", "Grado": "G", "Máster": "M", "Doctor": "D"}
 
 
-# ─── Search form ──────────────────────────────────────────────────────────────
-with st.form("busqueda_ruct"):
-    search_term = st.text_input(
-        "Nombre del título",
-        placeholder="Ej: Ingeniería Informática, Medicina...",
-        help="Busca por palabras en el nombre oficial del título",
-    )
+# ─── App state ─────────────────────────────────────────────────────────────────────
+df_res   = st.session_state.get("df_resultados")
+selected = st.session_state.get("selected_degree")
+warning  = st.session_state.get("warning_scraper")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        tipo_sel = st.selectbox(
-            "Nivel académico",
-            options=tipo_display,
-            index=tipo_display.index("Grado") if "Grado" in tipo_display else 0,
+
+# =====================================================================
+# STATE 1 - SEARCH
+# =====================================================================
+if df_res is None:
+    with st.form("busqueda_ruct"):
+        search_term = st.text_input(
+            "Nombre del título",
+            placeholder="Ej: Ingeniería Informática, Medicina...",
+            help="Busca por palabras en el nombre oficial del título",
         )
-    with col2:
-        univ_sel = st.selectbox(
-            "Universidad",
-            options=univ_display,
-        )
-
-    st.markdown(
-        '<p class="form-hint">Pulsa <strong>Buscar</strong> para realizar la consulta. '
-        'Los campos vacíos no aplican filtro.</p>',
-        unsafe_allow_html=True,
-    )
-
-    submitted = st.form_submit_button(
-        "Buscar", use_container_width=True, type="primary"
-    )
-
-
-# ─── Run search ───────────────────────────────────────────────────────────────
-if submitted:
-    tipo_val = tipo_values.get(tipo_sel, "")
-    univ_val = univ_values.get(univ_sel, "")
-
-    with st.spinner("Consultando el RUCT... esto puede tardar unos segundos."):
-        df, warning = ruct_scraper.search_ruct(
-            descripcion=search_term,
-            codigo="",
-            universidad=univ_val,
-            tipo=tipo_val,
-            rama="",
-            estado="P",
-            situacion="A",
-            historico="N",
-            timeout=30,
-            max_paginas=200,
-        )
-
-    st.session_state["df_resultados"] = df
-    st.session_state["warning_scraper"] = warning
-    st.session_state["last_search_term"] = search_term.strip()
-    # Reset selected degree when a new search is performed
-    st.session_state["selected_degree"] = None
-
-
-# ─── Display results ──────────────────────────────────────────────────────────
-df_res = st.session_state.get("df_resultados")
-warning_msg = st.session_state.get("warning_scraper")
-
-if df_res is not None:
-    if warning_msg:
+        col1, col2 = st.columns(2)
+        with col1:
+            tipo_sel = st.selectbox(
+                "Nivel académico",
+                options=tipo_display,
+                index=tipo_display.index("Grado") if "Grado" in tipo_display else 0,
+            )
+        with col2:
+            univ_sel = st.selectbox("Universidad", options=univ_display)
         st.markdown(
-            f'<div class="warn-box">⚠️ {warning_msg}</div>',
+            '<p class="form-hint">Pulsa <strong>Buscar</strong> para realizar la consulta. '
+            'Los campos vacíos no aplican filtro.</p>',
+            unsafe_allow_html=True,
+        )
+        submitted = st.form_submit_button("Buscar", use_container_width=True, type="primary")
+
+    if submitted:
+        tipo_val = tipo_values.get(tipo_sel, "")
+        univ_val = univ_values.get(univ_sel, "")
+        with st.spinner("Consultando el RUCT… esto puede tardar unos segundos."):
+            df, warn = ruct_scraper.search_ruct(
+                descripcion=search_term,
+                codigo="",
+                universidad=univ_val,
+                tipo=tipo_val,
+                rama="",
+                estado="P",
+                situacion="A",
+                historico="N",
+                timeout=30,
+                max_paginas=200,
+            )
+        st.session_state["df_resultados"] = df
+        st.session_state["warning_scraper"] = warn
+        st.session_state["last_search_term"] = search_term.strip()
+        st.session_state["selected_degree"] = None
+        st.rerun()
+
+
+# =====================================================================
+# STATE 2 - DETAIL
+# =====================================================================
+elif selected:
+    if st.button("← Volver a los resultados"):
+        st.session_state["selected_degree"] = None
+        st.rerun()
+
+    if "study_plans" not in st.session_state:
+        st.session_state["study_plans"] = {}
+    plan_key = f"{selected['title']}|||{selected['university']}"
+
+    if plan_key not in st.session_state["study_plans"]:
+        with st.spinner("Cargando ficha y plan de estudios…"):
+            st.session_state["study_plans"][plan_key] = _find_study_plan(
+                selected["title"],
+                selected["university"],
+                selected.get("url_ruct", ""),
+                selected.get("url_plan", ""),
+            )
+
+    plan  = st.session_state["study_plans"][plan_key]
+    ficha = plan.get("ficha", {})
+
+    denom = ficha.get("denominacion") or selected["title"]
+    st.markdown(f"### {denom}")
+    univ = ficha.get("universidad") or selected["university"]
+    st.caption(univ)
+    if selected.get("url_ruct"):
+        st.link_button("Ver ficha en el RUCT →", selected["url_ruct"])
+    st.divider()
+
+    def _row(label, value):
+        if value:
+            st.markdown(f"**{label}:** {value}")
+
+    _row("Centro", ficha.get("centro"))
+    _row("Comunidad Autónoma", ficha.get("ccaa"))
+
+    nivel = ficha.get("nivel", "")
+    meces = ficha.get("meces", "")
+    if nivel and meces:
+        _row("Nivel académico", f"{nivel}, MECES {meces}")
+    elif nivel:
+        _row("Nivel académico", nivel)
+
+    _row("Rama de conocimiento", ficha.get("rama"))
+    _row("Campo de estudio", ficha.get("campo"))
+
+    habilita = ficha.get("habilita", "")
+    if habilita:
+        _row("Habilita para profesión regulada", habilita)
+    if habilita.lower() in ("sí", "si"):
+        _row("Profesión regulada", ficha.get("profesion_regulada"))
+        _row("Norma reguladora", ficha.get("norma"))
+
+    menciones = ficha.get("menciones", [])
+    especialidades = ficha.get("especialidades", [])
+    if menciones:
+        st.markdown("**Menciones:**")
+        for m in menciones:
+            cred = f" ({m['creditos']} ECTS)" if m.get("creditos") else ""
+            st.markdown(f"- {m['nombre']}{cred}")
+    if especialidades:
+        st.markdown("**Especialidades:**")
+        for e in especialidades:
+            cred = f" ({e['creditos']} ECTS)" if e.get("creditos") else ""
+            st.markdown(f"- {e['nombre']}{cred}")
+
+    st.divider()
+
+    if plan.get("source_url"):
+        src = plan["source_url"]
+        btn_label = "Ver en el BOE →" if "boe.es" in src else "Ver plan de estudios →"
+        st.link_button(btn_label, src, use_container_width=True)
+        st.divider()
+
+    if plan.get("page_text"):
+        st.markdown(plan["page_text"])
+    elif plan.get("source_url"):
+        st.markdown(
+            '<div class="info-box">El plan de estudios está disponible en el BOE. '
+            'Pulsa el botón de arriba para consultarlo directamente.</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            '<div class="warn-box">⚠️ No se pudo obtener el plan de estudios. '
+            'Consulta la ficha oficial usando el botón «Ver ficha en el RUCT →» de arriba.</div>',
             unsafe_allow_html=True,
         )
 
+
+# =====================================================================
+# STATE 3 - RESULTS (search done, no degree selected)
+# =====================================================================
+elif df_res is not None:
+    if warning:
+        st.markdown(f'<div class="warn-box">⚠️ {warning}</div>', unsafe_allow_html=True)
+
     if df_res.empty:
         last_term = st.session_state.get("last_search_term", "")
-        if last_term:
-            st.markdown(
-                '<div class="warn-box">⚠️ El RUCT no devolvió resultados para tu búsqueda. '
-                'Si el término es habitual (p.ej. «Ingeniería», «Medicina»), '
-                'es posible que el servidor del RUCT esté temporalmente no disponible. '
-                'Por favor, espera unos minutos e inténtalo de nuevo.</div>',
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                '<div class="info-box">No se encontraron resultados con los filtros seleccionados. '
-                'Prueba a ampliar la búsqueda o cambiar los parámetros.</div>',
-                unsafe_allow_html=True,
-            )
+        msg = (
+            "El RUCT no devolvió resultados. Es posible que el servidor esté temporalmente no disponible."
+            if last_term else
+            "No se encontraron resultados. Prueba a ampliar la búsqueda."
+        )
+        st.markdown(f'<div class="warn-box">⚠️ {msg}</div>', unsafe_allow_html=True)
+        if st.button("← Nueva búsqueda"):
+            st.session_state["df_resultados"] = None
+            st.rerun()
 
     else:
         n = len(df_res)
-        selected = st.session_state.get("selected_degree")
 
-        # ── Detail view: study plan for the selected degree ────────────────────
-        if selected:
-            if st.button("← Volver a los resultados"):
+        # Top bar: back button + summary
+        col_back, col_meta = st.columns([2, 5])
+        with col_back:
+            if st.button("← Nueva búsqueda", use_container_width=True):
+                st.session_state["df_resultados"] = None
                 st.session_state["selected_degree"] = None
                 st.rerun()
-
-            # Use session_state as a cache to avoid re-fetching
-            if "study_plans" not in st.session_state:
-                st.session_state["study_plans"] = {}
-            plan_key = f"{selected['title']}|||{selected['university']}"
-
-            if plan_key not in st.session_state["study_plans"]:
-                with st.spinner("Cargando ficha y plan de estudios..."):
-                    st.session_state["study_plans"][plan_key] = _find_study_plan(
-                        selected["title"],
-                        selected["university"],
-                        selected.get("url_ruct", ""),
-                        selected.get("url_plan", ""),
-                    )
-
-            plan = st.session_state["study_plans"][plan_key]
-            ficha = plan.get("ficha", {})
-
-            # ── Título y botón RUCT ─────────────────────────────────────────────────
-            denom = ficha.get("denominacion") or selected["title"]
-            st.markdown(f"### {denom}")
-            univ = ficha.get("universidad") or selected["university"]
-            st.caption(univ)
-            if selected.get("url_ruct"):
-                st.link_button("Ver ficha en el RUCT →", selected["url_ruct"])
-            st.divider()
-
-            # ── Ficha de la titulación ────────────────────────────────────────────────────
-            def _row(label, value):
-                if value:
-                    st.markdown(f"**{label}:** {value}")
-
-            _row("Centro", ficha.get("centro"))
-            _row("Comunidad Autónoma", ficha.get("ccaa"))
-
-            nivel = ficha.get("nivel", "")
-            meces = ficha.get("meces", "")
-            if nivel and meces:
-                _row("Nivel académico", f"{nivel}, MECES {meces}")
-            elif nivel:
-                _row("Nivel académico", nivel)
-
-            _row("Rama de conocimiento", ficha.get("rama"))
-            _row("Campo de estudio", ficha.get("campo"))
-
-            habilita = ficha.get("habilita", "")
-            if habilita:
-                _row("Habilita para profesión regulada", habilita)
-            if habilita.lower() in ("sí", "si"):
-                _row("Profesión regulada", ficha.get("profesion_regulada"))
-                _row("Norma reguladora", ficha.get("norma"))
-
-            menciones = ficha.get("menciones", [])
-            especialidades = ficha.get("especialidades", [])
-            if menciones:
-                st.markdown("**Menciones:**")
-                for m in menciones:
-                    cred = f" ({m['creditos']} ECTS)" if m.get("creditos") else ""
-                    st.markdown(f"- {m['nombre']}{cred}")
-            if especialidades:
-                st.markdown("**Especialidades:**")
-                for e in especialidades:
-                    cred = f" ({e['creditos']} ECTS)" if e.get("creditos") else ""
-                    st.markdown(f"- {e['nombre']}{cred}")
-
-            st.divider()
-
-            # ── Plan de estudios ──────────────────────────────────────────────────────────
-            if plan.get("source_url"):
-                src = plan["source_url"]
-                btn_label = "Ver en el BOE →" if "boe.es" in src else "Ver plan de estudios →"
-                st.link_button(btn_label, src, use_container_width=True)
-                st.divider()
-
-            if plan.get("page_text"):
-                st.markdown(plan["page_text"])
-            elif plan.get("source_url"):
-                st.markdown(
-                    '<div class="info-box">El plan de estudios está disponible en el BOE. '
-                    'Pulsa el botón de arriba para consultarlo directamente.</div>',
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.markdown(
-                    '<div class="warn-box">⚠️ No se pudo obtener el plan de estudios. '
-                    'Consulta la ficha oficial usando el botón «Ver ficha en el RUCT →» de arriba.</div>',
-                    unsafe_allow_html=True,
-                )
-
-        # ── Results list ───────────────────────────────────────────────────────
-        else:
-            # Quick metrics
-            col_m1, col_m2 = st.columns(2)
-            with col_m1:
-                st.metric("Títulos encontrados", f"{n:,}")
-            with col_m2:
-                st.metric("Universidades", f"{df_res['universidad'].nunique():,}")
-
-            st.divider()
-
-            # Pagination
-            page_size = 25
-            total_pages = max(1, (n - 1) // page_size + 1)
-            detail_page = st.number_input(
-                f"Página (de {total_pages})",
-                min_value=1,
-                max_value=total_pages,
-                value=st.session_state.get("result_page", 1),
-                step=1,
+        with col_meta:
+            st.markdown(
+                f'<p style="margin:0.55rem 0 0;font-size:0.82rem;color:#6B7280;">'
+                f'<strong style="color:#111827">{n:,}</strong> títulos encontrados en '
+                f'<strong style="color:#111827">{df_res["universidad"].nunique():,}</strong> universidades</p>',
+                unsafe_allow_html=True,
             )
-            st.session_state["result_page"] = detail_page
-            start = (detail_page - 1) * page_size
-            end = min(start + page_size, n)
-            st.caption(f"Mostrando {start + 1}–{end} de {n} resultados · pulsa un título para ver su plan de estudios")
 
-            # One row per result: title+university on the left, "Ver" button on the right
-            for i, (_, row) in enumerate(df_res.iloc[start:end].iterrows()):
-                col_info, col_btn = st.columns([6, 1])
-                with col_info:
-                    st.markdown(
-                        f'<span class="result-title">{row["titulo"]}</span>'
-                        f'<br><span class="result-univ">{row["universidad"]}</span>',
-                        unsafe_allow_html=True,
-                    )
-                with col_btn:
-                    if st.button("Ver", key=f"view_{start + i}", use_container_width=True):
-                        st.session_state["selected_degree"] = {
-                            "title": row["titulo"],
-                            "university": row["universidad"],
-                            "url_ruct": row.get("url_ruct", ""),
-                            "url_plan": row.get("url_plan", ""),
-                        }
-                        st.rerun()
+        st.divider()
+
+        # Filters
+        col_f1, col_f2, col_f3 = st.columns([3, 2, 1])
+        with col_f1:
+            filter_title = st.text_input(
+                "denominacion", label_visibility="collapsed",
+                placeholder="Filtrar por denominación...",
+            )
+        with col_f2:
+            univs_opts = ["Todas las universidades"] + sorted(df_res["universidad"].dropna().unique().tolist())
+            filter_univ = st.selectbox("universidad", univs_opts, label_visibility="collapsed")
+        with col_f3:
+            niv_opts = ["Todos"] + sorted(df_res["nivel"].dropna().unique().tolist())
+            filter_nivel = st.selectbox("nivel", niv_opts, label_visibility="collapsed")
+
+        # Apply filters
+        filtered = df_res.copy()
+        if filter_title:
+            filtered = filtered[filtered["titulo"].str.contains(filter_title, case=False, na=False)]
+        if filter_univ != "Todas las universidades":
+            filtered = filtered[filtered["universidad"] == filter_univ]
+        if filter_nivel != "Todos":
+            filtered = filtered[filtered["nivel"] == filter_nivel]
+
+        n_filt = len(filtered)
+        if n_filt != n:
+            st.caption(f"Mostrando {n_filt:,} de {n:,} resultados")
+        else:
+            st.caption(f"{n_filt:,} resultados")
+
+        # Results rows
+        for i, (_, row) in enumerate(filtered.iterrows()):
+            col_info, col_btn = st.columns([6, 1])
+            with col_info:
+                st.markdown(
+                    f'<span class="result-title">{row["titulo"]}</span>'
+                    f'<br><span class="result-univ">{row["universidad"]}</span>',
+                    unsafe_allow_html=True,
+                )
+            with col_btn:
+                if st.button("Ver", key=f"view_{i}", use_container_width=True):
+                    st.session_state["selected_degree"] = {
+                        "title": row["titulo"],
+                        "university": row["universidad"],
+                        "url_ruct": row.get("url_ruct", ""),
+                        "url_plan": row.get("url_plan", ""),
+                    }
+                    st.rerun()
