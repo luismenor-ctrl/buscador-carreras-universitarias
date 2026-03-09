@@ -163,34 +163,7 @@ st.markdown("""
         color: #737373 !important;
         margin: 0.375rem 0 0.75rem;
     }
-    .header-badges {
-        display: flex;
-        justify-content: center;
-        gap: 0.375rem;
-        flex-wrap: wrap;
-    }
-    .badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.25rem;
-        padding: 0.3rem 0.65rem;
-        border-radius: 9999px;
-        font-size: 0.7rem;
-        font-weight: 600;
-        border: 1px solid var(--color-border);
-        background: var(--color-surface);
-        color: #171717;
-    }
-    .badge-country {
-        background: var(--color-accent-light);
-        color: var(--color-accent-dark);
-        border-color: #93C5FD;
-    }
-    .badge-source {
-        background: var(--color-success-light);
-        color: #065F46;
-        border-color: #6EE7B7;
-    }
+
 
     /* Form section */
     [data-testid="stForm"] {
@@ -551,10 +524,7 @@ st.markdown("""
     <p class="header-subtitle">
         Consulta en tiempo real en el registro oficial del Ministerio de Educación
     </p>
-    <div class="header-badges">
-        <span class="badge badge-country">España</span>
-        <span class="badge badge-source">Fuente: RUCT oficial</span>
-    </div>
+
 </div>
 """, unsafe_allow_html=True)
 
