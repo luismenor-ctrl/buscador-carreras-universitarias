@@ -313,46 +313,124 @@ def _boe_pdf_to_html(pdf_url: str) -> str:
     return f"https://www.boe.es/diario_boe/txt.php?id={m.group(1)}" if m else ""
 
 
-def _fetch_boe_url_from_ruct(url_ruct: str, url_plan: str) -> str:
+def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
     """
-    Get the BOE study plan HTML URL from the RUCT degree page.
+    Fetch full degree metadata from RUCT and the BOE study plan URL.
 
     Session flow:
       1. GET consultaestudios.action    — init session
-      2. GET url_plan (lupa link)       — register this degree in server session
-      3. GET url_ruct (estudio.action)  — now returns full page including div#ttwo
+      2. GET url_plan (detalles.action) — datos basicos: denominacion, profesion regulada,
+                                         norma, menciones/especialidades
+      3. GET url_ruct (estudio.action)  — nivel, MECES, rama, campo, centro, CCAA, BOE URL
 
-    div#ttwo contains the label 'Publicación Plan Estudios en el BOE' with the PDF link.
-    Returns the BOE HTML URL (txt.php), or "" on failure.
+    Returns a dict with all available fields (empty string/list when not found).
     """
+    ficha = {
+        "denominacion": "", "universidad": "", "centro": "", "ccaa": "",
+        "nivel": "", "meces": "", "rama": "", "campo": "",
+        "habilita": "", "profesion_regulada": "", "acuerdo": "", "norma": "",
+        "menciones": [], "especialidades": [], "boe_plan_url": "",
+    }
     if not url_ruct or not url_plan:
-        return ""
+        return ficha
     try:
         session = requests.Session()
         session.headers.update(_WEB_HEADERS)
         session.get(_RUCT_INIT_URL, timeout=15)
-        session.get(url_plan, timeout=15)
-        r = session.get(url_ruct, timeout=15)
-        r.raise_for_status()
-        soup = BeautifulSoup(r.text, "lxml")
-        ttwo = soup.find("div", id="ttwo")
-        if not ttwo:
-            return ""
-        # The label for="f_plan" wraps the 'Publicación Plan Estudios en el BOE' link
-        plan_label = ttwo.find("label", {"for": "f_plan"})
-        if plan_label:
-            a = plan_label.find("a", href=True)
-            if a:
-                return _boe_pdf_to_html(a["href"])
-        # Fallback: scan labels in div#ttwo for 'Plan Estudios'
-        for label in ttwo.find_all("label"):
-            if "Plan Estudios" in label.get_text():
-                a = label.find("a", href=True)
-                if a and "boe.es" in a["href"] and ".pdf" in a["href"]:
-                    return _boe_pdf_to_html(a["href"])
-        return ""
+
+        # Step 2: detalles.action — datos basicos
+        r_det = session.get(url_plan, timeout=15)
+        if r_det.status_code < 400:
+            soup_det = BeautifulSoup(r_det.text, "lxml")
+
+            def _inp(name):
+                el = soup_det.find("input", {"name": name})
+                return el["value"].strip() if el and el.get("value") else ""
+
+            ficha["denominacion"] = _inp("denominacion")
+            ficha["habilita"] = _inp("habilita")
+            ficha["profesion_regulada"] = _inp("codigoProfesionRegulada")
+
+            for for_val, key in [("acuerdo", "acuerdo"), ("norma", "norma")]:
+                lbl = soup_det.find("label", {"for": for_val})
+                if lbl:
+                    a = lbl.find("a")
+                    if a:
+                        ficha[key] = a.get_text(strip=True)
+
+            for fs in soup_det.find_all("fieldset"):
+                leg = fs.find("legend")
+                if not leg:
+                    continue
+                leg_text = leg.get_text(strip=True).lower()
+                tbl = fs.find("table")
+                if not tbl:
+                    continue
+                items = []
+                for tr in tbl.find_all("tr")[1:]:
+                    cells = tr.find_all("td")
+                    if len(cells) >= 2:
+                        nombre = cells[1].get_text(strip=True)
+                        cred = cells[2].get_text(strip=True) if len(cells) > 2 else ""
+                        if nombre:
+                            items.append({"nombre": nombre, "creditos": cred})
+                if "menci" in leg_text:
+                    ficha["menciones"] = items
+                elif "especialidad" in leg_text:
+                    ficha["especialidades"] = items
+
+        # Step 3: estudio.action — nivel, MECES, rama, campo, centro, CCAA, BOE URL
+        r_est = session.get(url_ruct, timeout=15)
+        r_est.raise_for_status()
+        soup_est = BeautifulSoup(r_est.text, "lxml")
+
+        def _sid(span_id):
+            el = soup_est.find(id=span_id)
+            return el.get_text(strip=True) if el else ""
+
+        nivel_raw = _sid("estudio_descripcionTipo")
+        meces = _sid("estudio_nivelMeces")
+        nivel_clean = nivel_raw.split(" - ")[0].strip() if " - " in nivel_raw else nivel_raw
+        ficha["nivel"] = nivel_clean
+        ficha["meces"] = meces
+        ficha["rama"] = _sid("estudio_descripcionRama")
+        ficha["campo"] = _sid("estudio_descripcionAmbito")
+
+        tthree = soup_est.find("div", id="tthree")
+        if tthree:
+            tbl = tthree.find("table", id="centro")
+            if tbl:
+                rows = tbl.find_all("tr")[1:]
+                if rows:
+                    cells = rows[0].find_all("td")
+                    if len(cells) >= 3:
+                        ficha["universidad"] = cells[0].get_text(strip=True)
+                        ficha["centro"] = cells[2].get_text(strip=True)
+
+        ttwo = soup_est.find("div", id="ttwo")
+        if ttwo:
+            ccaa_tbl = ttwo.find("table", id="ccaa")
+            if ccaa_tbl:
+                rows = ccaa_tbl.find_all("tr")[1:]
+                if rows:
+                    cells = rows[0].find_all("td")
+                    if len(cells) >= 3:
+                        ficha["ccaa"] = cells[2].get_text(strip=True)
+            plan_label = ttwo.find("label", {"for": "f_plan"})
+            if plan_label:
+                a = plan_label.find("a", href=True)
+                if a:
+                    ficha["boe_plan_url"] = _boe_pdf_to_html(a["href"])
+            if not ficha["boe_plan_url"]:
+                for label in ttwo.find_all("label"):
+                    if "Plan Estudios" in label.get_text():
+                        a = label.find("a", href=True)
+                        if a and "boe.es" in a["href"] and ".pdf" in a["href"]:
+                            ficha["boe_plan_url"] = _boe_pdf_to_html(a["href"])
+                            break
     except Exception:
-        return ""
+        pass
+    return ficha
 
 
 def _html_table_to_md(table) -> str:
@@ -447,28 +525,23 @@ def _fetch_ruct_modules(url_plan: str) -> str:
 
 def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: str = "") -> dict:
     """
-    Locate the study plan for a RUCT degree.
+    Fetch the RUCT degree ficha (metadata) and locate the study plan.
 
-    Source chain:
-      1. Primary: BOE 'Publicación Plan Estudios' from RUCT div#ttwo (via session)
-         Complete plan: subjects, credits, type, temporal organisation.
-      2. Fallback: RUCT datosModulo page — list of module/subject names.
-
-    Returns {"page_text": str, "source_url": str}
+    Returns {"ficha": dict, "page_text": str, "source_url": str}
     """
-    # Step 1: RUCT degree page → BOE plan PDF → BOE HTML → extract div#textoxslt
-    boe_url = _fetch_boe_url_from_ruct(url_ruct, url_plan)
+    ficha = _fetch_ruct_ficha(url_ruct, url_plan)
+    boe_url = ficha.get("boe_plan_url", "")
     if boe_url:
         plan_text = _fetch_boe_plan(boe_url)
         if plan_text:
-            return {"page_text": plan_text, "source_url": boe_url}
+            return {"ficha": ficha, "page_text": plan_text, "source_url": boe_url}
 
-    # Step 2: RUCT modules page (fallback — subject names only, no credits)
+    # Fallback: RUCT modules page (subject names only, no credits)
     modules_text = _fetch_ruct_modules(url_plan) if url_plan else ""
     if modules_text:
-        return {"page_text": modules_text, "source_url": ""}
+        return {"ficha": ficha, "page_text": modules_text, "source_url": ""}
 
-    return {"page_text": "", "source_url": ""}
+    return {"ficha": ficha, "page_text": "", "source_url": ""}
 
 
 # ─── Header ───────────────────────────────────────────────────────────────────
@@ -610,19 +683,13 @@ if df_res is not None:
                 st.session_state["selected_degree"] = None
                 st.rerun()
 
-            st.markdown(f"### {selected['title']}")
-            st.caption(selected["university"])
-            if selected.get("url_ruct"):
-                st.link_button("Ver ficha en el RUCT →", selected["url_ruct"])
-            st.divider()
-
             # Use session_state as a cache to avoid re-fetching
             if "study_plans" not in st.session_state:
                 st.session_state["study_plans"] = {}
             plan_key = f"{selected['title']}|||{selected['university']}"
 
             if plan_key not in st.session_state["study_plans"]:
-                with st.spinner("Buscando el plan de estudios..."):
+                with st.spinner("Cargando ficha y plan de estudios..."):
                     st.session_state["study_plans"][plan_key] = _find_study_plan(
                         selected["title"],
                         selected["university"],
@@ -631,7 +698,58 @@ if df_res is not None:
                     )
 
             plan = st.session_state["study_plans"][plan_key]
+            ficha = plan.get("ficha", {})
 
+            # ── Título y botón RUCT ─────────────────────────────────────────────────
+            denom = ficha.get("denominacion") or selected["title"]
+            st.markdown(f"### {denom}")
+            univ = ficha.get("universidad") or selected["university"]
+            st.caption(univ)
+            if selected.get("url_ruct"):
+                st.link_button("Ver ficha en el RUCT →", selected["url_ruct"])
+            st.divider()
+
+            # ── Ficha de la titulación ────────────────────────────────────────────────────
+            def _row(label, value):
+                if value:
+                    st.markdown(f"**{label}:** {value}")
+
+            _row("Centro", ficha.get("centro"))
+            _row("Comunidad Autónoma", ficha.get("ccaa"))
+
+            nivel = ficha.get("nivel", "")
+            meces = ficha.get("meces", "")
+            if nivel and meces:
+                _row("Nivel académico", f"{nivel}, MECES {meces}")
+            elif nivel:
+                _row("Nivel académico", nivel)
+
+            _row("Rama de conocimiento", ficha.get("rama"))
+            _row("Campo de estudio", ficha.get("campo"))
+
+            habilita = ficha.get("habilita", "")
+            if habilita:
+                _row("Habilita para profesión regulada", habilita)
+            if habilita.lower() in ("sí", "si"):
+                _row("Profesión regulada", ficha.get("profesion_regulada"))
+                _row("Norma reguladora", ficha.get("norma"))
+
+            menciones = ficha.get("menciones", [])
+            especialidades = ficha.get("especialidades", [])
+            if menciones:
+                st.markdown("**Menciones:**")
+                for m in menciones:
+                    cred = f" ({m['creditos']} ECTS)" if m.get("creditos") else ""
+                    st.markdown(f"- {m['nombre']}{cred}")
+            if especialidades:
+                st.markdown("**Especialidades:**")
+                for e in especialidades:
+                    cred = f" ({e['creditos']} ECTS)" if e.get("creditos") else ""
+                    st.markdown(f"- {e['nombre']}{cred}")
+
+            st.divider()
+
+            # ── Plan de estudios ──────────────────────────────────────────────────────────
             if plan.get("source_url"):
                 src = plan["source_url"]
                 btn_label = "Ver en el BOE →" if "boe.es" in src else "Ver plan de estudios →"
