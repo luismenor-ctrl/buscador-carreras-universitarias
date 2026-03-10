@@ -158,9 +158,19 @@ def search_ruct(
     session = requests.Session()
     session.headers.update(HEADERS)
 
-    # Initialize session to obtain cookies
+    # Initialize session and capture the form action URL (contains jsessionid)
     try:
-        session.get(FORM_URL, timeout=timeout)
+        init_r = session.get(FORM_URL, timeout=timeout)
+        init_soup = BeautifulSoup(init_r.text, "lxml")
+        form = init_soup.find("form")
+        if form and form.get("action"):
+            action = form["action"]
+            post_url = (
+                action if action.startswith("http")
+                else f"https://www.educacion.gob.es{action}"
+            )
+        else:
+            post_url = f"{FORM_URL}?actual=estudios"
     except requests.RequestException as e:
         return pd.DataFrame(columns=RESULT_COLUMNS), f"No se pudo conectar al RUCT: {e}"
 
@@ -183,11 +193,10 @@ def search_ruct(
     warning = None
 
     try:
-        # Page 1 — POST
+        # Page 1 — POST to the form action URL (includes jsessionid for server-side session)
         r = session.post(
-            FORM_URL,
+            post_url,
             data=payload,
-            params={"actual": "estudios"},
             timeout=timeout,
         )
         r.raise_for_status()
