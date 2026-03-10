@@ -22,10 +22,13 @@ HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0.0.0 Safari/537.36"
+        "Chrome/124.0.0.0 Safari/537.36"
     ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
 }
 
 # Known value mappings — used as fallback when the RUCT form cannot be fetched
@@ -194,6 +197,9 @@ def search_ruct(
 
     try:
         # Page 1 — POST to the form action URL (includes jsessionid for server-side session)
+        session.headers["Referer"] = FORM_URL
+        session.headers["Content-Type"] = "application/x-www-form-urlencoded"
+        time.sleep(0.3)
         r = session.post(
             post_url,
             data=payload,
@@ -214,12 +220,13 @@ def search_ruct(
                 or "registros encontrados" in page_text
             )
             if not has_marker:
+                snippet = " ".join(page_text.split())[:200]
                 return (
                     pd.DataFrame(columns=RESULT_COLUMNS),
-                    "El RUCT no ha podido procesar la búsqueda. "
+                    f"El RUCT no ha podido procesar la búsqueda (HTTP {r.status_code}). "
                     "Es posible que el servidor esté temporalmente no disponible "
                     "o que la aplicación no tenga acceso desde este servidor. "
-                    "Por favor, inténtalo de nuevo en unos minutos.",
+                    f"Respuesta recibida: {snippet}",
                 )
 
         if progress_callback:
