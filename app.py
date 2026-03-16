@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.WARNING)
 st.set_page_config(
     page_title="Buscador de Carreras Universitarias Oficiales en España",
     page_icon="🎓",
-    layout="centered",
+    layout="wide",
     initial_sidebar_state="collapsed",
 )
 
@@ -65,8 +65,8 @@ st.markdown("""
     /* ── App shell ── */
     .stApp { background: var(--c-bg) !important; color: var(--c-text) !important; color-scheme: light only !important; }
     .main .block-container {
-        padding: 0 1rem 3rem 1rem;
-        max-width: 820px;
+        padding: 0 2rem 3rem 2rem;
+        max-width: 1040px;
         background: var(--c-bg) !important;
         color: var(--c-text) !important;
     }
@@ -77,18 +77,18 @@ st.markdown("""
         flex-direction: column;
         align-items: center;
         text-align: center;
-        padding: 1.75rem 0 1.25rem;
+        padding: 1.1rem 0 0.85rem;
         border-bottom: 1px solid var(--c-border);
-        margin-bottom: 2rem;
-        gap: 0.6rem;
+        margin-bottom: 1.5rem;
+        gap: 0.4rem;
     }
     .header-logo {
-        height: 80px;
+        height: 56px;
         width: auto;
         opacity: 0.92;
     }
     .header-title {
-        font-size: 1.05rem !important;
+        font-size: 1.1rem !important;
         font-weight: 700 !important;
         color: var(--c-text) !important;
         margin: 0 !important;
@@ -101,14 +101,15 @@ st.markdown("""
         margin: 0;
         letter-spacing: 0.01em;
     }
-    /* Responsive title */
+    /* Responsive */
     @media (max-width: 768px) {
         .header-title { font-size: 0.88rem !important; }
-        .header-logo { height: 64px; }
+        .header-logo { height: 48px; }
+        .main .block-container { padding: 0 1rem 2rem; }
     }
     @media (max-width: 480px) {
         .header-title { font-size: 0.78rem !important; }
-        .header-logo { height: 52px; }
+        .header-logo { height: 40px; }
         .main .block-container { padding: 0 0.5rem 2rem; }
         .header-sub { font-size: 0.72rem; }
     }
@@ -118,8 +119,8 @@ st.markdown("""
         background: var(--c-surface) !important;
         border: 1px solid var(--c-border) !important;
         border-radius: var(--radius) !important;
-        padding: 1.25rem 1.25rem 1rem !important;
-        margin-bottom: 1.75rem !important;
+        padding: 1rem 1.25rem 0.875rem !important;
+        margin-bottom: 1.25rem !important;
     }
     .stSelectbox > div > div,
     .stMultiSelect > div > div {
@@ -768,26 +769,28 @@ warning  = st.session_state.get("warning_scraper")
 # =====================================================================
 if df_res is None:
     with st.form("busqueda_ruct"):
-        search_term = st.text_input(
-            "Nombre del título",
-            placeholder="Ej: Ingeniería Informática, Medicina...",
-            help="Busca por palabras en el nombre oficial del título",
-        )
-        col1, col2 = st.columns(2)
-        with col1:
+        col_s, col_t, col_u, col_btn = st.columns([4, 1.6, 2, 1.2])
+        with col_s:
+            search_term = st.text_input(
+                "Denominación",
+                placeholder="Ej: Ingeniería Informática, Medicina...",
+                help="Busca por palabras en el nombre oficial del título",
+            )
+        with col_t:
             tipo_sel = st.selectbox(
-                "Nivel académico",
+                "Nivel",
                 options=tipo_display,
                 index=tipo_display.index("Grado") if "Grado" in tipo_display else 0,
             )
-        with col2:
+        with col_u:
             univ_sel = st.selectbox("Universidad", options=univ_display)
+        with col_btn:
+            st.markdown('<div style="height:1.7rem"></div>', unsafe_allow_html=True)
+            submitted = st.form_submit_button("Buscar", use_container_width=True, type="primary")
         st.markdown(
-            '<p class="form-hint">Pulsa <strong>Buscar</strong> para realizar la consulta. '
-            'Indica al menos una denominación o selecciona una universidad concreta.</p>',
+            '<p class="form-hint">Indica al menos una denominación o selecciona una universidad concreta.</p>',
             unsafe_allow_html=True,
         )
-        submitted = st.form_submit_button("Buscar", use_container_width=True, type="primary")
 
     if submitted:
         tipo_val = tipo_values.get(tipo_sel, "")
