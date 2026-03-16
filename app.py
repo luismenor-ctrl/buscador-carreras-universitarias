@@ -713,7 +713,10 @@ except Exception:
 if options:
     univ_display, univ_values = _prepare_options(options["universidades"])
     rama_display, rama_values = _prepare_options(options["ramas"])
-    tipo_display, tipo_values = _prepare_options(options["tipos"])
+    _TIPOS_VALIDOS = {"", "G", "M", "D"}
+    tipo_display, tipo_values = _prepare_options(
+        [(label, val) for label, val in options["tipos"] if val in _TIPOS_VALIDOS]
+    )
 else:
     univ_display = ["Todas"]
     univ_values  = {"Todas": ""}
