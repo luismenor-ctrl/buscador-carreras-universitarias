@@ -583,16 +583,33 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
 
 # ─── ECTS breakdown parser ────────────────────────────────────────────────────
 _ECTS_CATS = [
-    ("basica",      ["básic", "formación bás", "formacion bas", "basica", "básica"]),
+    ("basica",      ["básic", "formación bás", "formacion bas", "basica", "básica", "fbc", "fbr"]),
     ("obligatoria", ["obligatori"]),   # covers: obligatoria/s/os
     ("optativa",    ["optativ"]),      # covers: optativa/s, optativos
     ("practicas",   ["práctic", "practic", "practicum"]),
     ("tfg_tfm",     ["trabajo fin", "trabajo de fin", "tfg", "tfm"]),
 ]
 
+# BOE abbreviations used in 'Carácter' columns of detailed subject tables
+_ECTS_ABBREVS = {
+    "fb": "basica", "fbc": "basica", "fbr": "basica",
+    "ob": "obligatoria",
+    "op": "optativa",
+    "pe": "practicas",
+    "tfg": "tfg_tfm", "tfm": "tfg_tfm",
+}
+
 
 def _categorize_ects(text: str):
     t = text.lower().strip()
+    # Exact abbreviation match (e.g. carácter column contains just 'OB', 'FB', etc.)
+    if t in _ECTS_ABBREVS:
+        return _ECTS_ABBREVS[t]
+    # Strip trailing punctuation and try again
+    t_clean = t.rstrip(".,; ")
+    if t_clean in _ECTS_ABBREVS:
+        return _ECTS_ABBREVS[t_clean]
+    # Keyword substring match
     for cat, keywords in _ECTS_CATS:
         if any(kw in t for kw in keywords):
             return cat
@@ -656,7 +673,7 @@ def _parse_ects_breakdown(boe_url: str) -> dict:
                     continue
                 # Skip total/summary rows
                 first_text = cells[0].get_text(strip=True).lower()
-                if first_text.startswith("total") or first_text.startswith("suma"):
+                if "total" in first_text or "suma" in first_text:
                     continue
                 m = re.search(r"(\d+(?:[.,]\d+)?)", cells[ects_col].get_text(separator=" ", strip=True))
                 val = float(m.group(1).replace(",", ".")) if m else 0.0
