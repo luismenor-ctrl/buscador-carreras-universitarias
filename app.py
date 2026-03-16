@@ -1005,9 +1005,9 @@ elif st.session_state.get("comparing"):
             )
             total_cell = f'<td style="padding:0.35rem 0.6rem;text-align:right;font-size:0.78rem;font-weight:600;">{e["total"] if e["total"] > 0 else "—"}</td>'
             name_cell = (
-                f'<td style="padding:0.35rem 0.6rem;font-size:0.78rem;max-width:180px;">'
-                f'<strong>{denom[:50]}</strong><br>'
-                f'<span style="color:#6B7280;font-size:0.68rem;">{univ[:40]}</span></td>'
+                f'<td style="padding:0.35rem 0.6rem;font-size:0.78rem;max-width:220px;word-wrap:break-word;">'
+                f'<strong>{denom}</strong><br>'
+                f'<span style="color:#6B7280;font-size:0.68rem;">{univ}</span></td>'
             )
             tbody += f"<tr>{name_cell}{row_cells}{total_cell}</tr>"
 
