@@ -1213,10 +1213,12 @@ elif df_res is not None:
                     st.session_state["comparing"] = True
                     st.session_state["comparison_data"] = {}
                     st.rerun()
+                if n_comp < 4:
+                    st.caption(f"Puedes añadir {4 - n_comp} más")
             elif n_comp == 1:
                 st.caption("Añade 1 más para comparar")
             else:
-                st.caption("Selecciona con +")
+                st.caption("Selecciona con + (máx. 4)")
 
         st.divider()
 
