@@ -583,11 +583,11 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
 
 # ─── ECTS breakdown parser ────────────────────────────────────────────────────
 _ECTS_CATS = [
-    ("basica",      ["básica", "basica", "formación básica", "formacion basica"]),
-    ("obligatoria", ["obligatoria"]),
-    ("optativa",    ["optativa"]),
-    ("practicas",   ["práctica", "practica", "practicum", "prácticas externas", "practicas externas"]),
-    ("tfg_tfm",     ["trabajo fin", "tfg", "tfm"]),
+    ("basica",      ["básic", "formación bás", "formacion bas", "basica", "básica"]),
+    ("obligatoria", ["obligatori"]),   # covers: obligatoria/s/os
+    ("optativa",    ["optativ"]),      # covers: optativa/s, optativos
+    ("practicas",   ["práctic", "practic", "practicum"]),
+    ("tfg_tfm",     ["trabajo fin", "trabajo de fin", "tfg", "tfm"]),
 ]
 
 
@@ -602,6 +602,8 @@ def _categorize_ects(text: str):
 def _parse_ects_breakdown(boe_url: str) -> dict:
     """
     Fetch a BOE study plan page and parse ECTS credits by category.
+    Looks for the summary table (few rows, total 30-400 ECTS) and uses only that,
+    ignoring detailed per-subject tables which would cause double counting.
     Returns dict: {"basica": N, "obligatoria": N, "optativa": N,
                    "practicas": N, "tfg_tfm": N, "otros": N, "total": N}
     """
@@ -618,23 +620,13 @@ def _parse_ects_breakdown(boe_url: str) -> dict:
         if not content:
             return result
 
-        totals: dict = {"basica": 0.0, "obligatoria": 0.0, "optativa": 0.0,
-                        "practicas": 0.0, "tfg_tfm": 0.0, "otros": 0.0}
-
-        for table in content.find_all("table"):
-            # Skip nested tables
-            if table.find_parent("table"):
-                continue
-
+        def _parse_single_table(table):
+            """Parse one table and return (totals_dict, n_data_rows) or (None, 0)."""
             rows = table.find_all("tr")
             if not rows:
-                continue
-
-            # Detect header row
-            header_row = rows[0]
+                return None, 0
             header_cells = [th.get_text(separator=" ", strip=True).lower()
-                            for th in header_row.find_all(["th", "td"])]
-
+                            for th in rows[0].find_all(["th", "td"])]
             ects_col = None
             char_col = None
             for idx, h in enumerate(header_cells):
@@ -642,49 +634,65 @@ def _parse_ects_breakdown(boe_url: str) -> dict:
                     ects_col = idx
                 if any(k in h for k in ["carácter", "caracter", "tipo", "naturaleza"]):
                     char_col = idx
-
-            # If no ECTS header but 2-3 columns: assume summary table (col0=tipo, last=ECTS)
+            # Last column named "total" → per-row aggregate (e.g. ECTS split by year)
+            if ects_col is None and header_cells and header_cells[-1].strip() == "total":
+                ects_col = len(header_cells) - 1
+                if char_col is None:
+                    char_col = 0
+            # 2-3 column table without explicit ECTS header: col0=tipo, last=ECTS
             if ects_col is None and 2 <= len(header_cells) <= 3:
                 ects_col = len(header_cells) - 1
                 char_col = 0
-
             if ects_col is None:
-                continue
-
-            data_rows = rows[1:]
-            if not data_rows:
-                continue
-
-            for tr in data_rows:
+                return None, 0
+            totals = {"basica": 0.0, "obligatoria": 0.0, "optativa": 0.0,
+                      "practicas": 0.0, "tfg_tfm": 0.0, "otros": 0.0}
+            n_rows = 0
+            for tr in rows[1:]:
                 cells = tr.find_all(["td", "th"])
+                if not cells:
+                    continue
                 if len(cells) <= ects_col:
                     continue
-                ects_cell = cells[ects_col].get_text(separator=" ", strip=True)
-                m = re.search(r"(\d+(?:[.,]\d+)?)", ects_cell)
-                if not m:
+                # Skip total/summary rows
+                first_text = cells[0].get_text(strip=True).lower()
+                if first_text.startswith("total") or first_text.startswith("suma"):
                     continue
-                val = float(m.group(1).replace(",", "."))
-
-                # Determine category text
-                if char_col is not None and len(cells) > char_col:
+                m = re.search(r"(\d+(?:[.,]\d+)?)", cells[ects_col].get_text(separator=" ", strip=True))
+                val = float(m.group(1).replace(",", ".")) if m else 0.0
+                if val <= 0:
+                    continue
+                n_rows += 1
+                if char_col is not None and char_col < len(cells):
                     cat_text = cells[char_col].get_text(separator=" ", strip=True)
                 else:
-                    # Use all cell texts before the ECTS column
                     cat_text = " ".join(
                         cells[j].get_text(separator=" ", strip=True)
                         for j in range(min(ects_col, len(cells)))
                     )
-
                 cat = _categorize_ects(cat_text)
-                if cat:
-                    totals[cat] += val
-                else:
-                    totals["otros"] += val
+                totals[cat if cat else "otros"] += val
+            return totals, n_rows
 
-        # Round to int and compute total
-        for k in totals:
-            result[k] = int(round(totals[k]))
-        result["total"] = sum(result[k] for k in totals)
+        # Strategy: find the summary table — few rows (≤15), total in [30, 400].
+        # BOE plans always have a summary first; skip per-subject detail tables.
+        best = None
+        best_rows = 9999
+        for table in content.find_all("table"):
+            if table.find_parent("table"):
+                continue
+            totals, n_rows = _parse_single_table(table)
+            if totals is None:
+                continue
+            table_total = sum(totals.values())
+            if 30 <= table_total <= 400 and n_rows <= 15 and n_rows < best_rows:
+                best = totals
+                best_rows = n_rows
+
+        if best:
+            for k in best:
+                result[k] = int(round(best[k]))
+            result["total"] = sum(result[k] for k in best)
     except Exception:
         pass
     return result
