@@ -1037,7 +1037,7 @@ elif st.session_state.get("comparing"):
                 continue
             pct = val / total * 100
             color = _CAT_COLORS[cat]
-            label = f"{val}" if pct > 6 else ""
+            label = f"{val}" if pct > 12 else ""
             segments += (
                 f'<div class="ects-seg" style="width:{pct:.1f}%;background:{color};" '
                 f'title="{_CAT_LABELS[cat]}: {val} ECTS">{label}</div>'
