@@ -816,6 +816,18 @@ if df_res is None:
 # STATE 2 - DETAIL
 # =====================================================================
 elif selected:
+    st.markdown(
+        '<script>'
+        'setTimeout(function(){'
+        '  var el = window.parent.document.querySelector("section.main") || '
+        '           window.parent.document.querySelector(".main") || '
+        '           window.parent.document.body;'
+        '  if(el) el.scrollTop = 0;'
+        '  window.parent.scrollTo(0,0);'
+        '}, 50);'
+        '</script>',
+        unsafe_allow_html=True,
+    )
     if st.button("← Volver a los resultados"):
         st.session_state["selected_degree"] = None
         st.rerun()
