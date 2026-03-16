@@ -576,7 +576,7 @@ if df_res is None:
             univ_sel = st.selectbox("Universidad", options=univ_display)
         st.markdown(
             '<p class="form-hint">Pulsa <strong>Buscar</strong> para realizar la consulta. '
-            'Los campos vacíos no aplican filtro.</p>',
+            'Indica al menos una denominación o selecciona una universidad concreta.</p>',
             unsafe_allow_html=True,
         )
         submitted = st.form_submit_button("Buscar", use_container_width=True, type="primary")
@@ -718,13 +718,14 @@ elif df_res is not None:
         st.markdown(f'<div class="warn-box">⚠️ {warning}</div>', unsafe_allow_html=True)
 
     if df_res.empty:
-        last_term = st.session_state.get("last_search_term", "")
-        msg = (
-            "El RUCT no devolvió resultados. Es posible que el servidor esté temporalmente no disponible."
-            if last_term else
-            "No se encontraron resultados. Prueba a ampliar la búsqueda."
-        )
-        st.markdown(f'<div class="warn-box">⚠️ {msg}</div>', unsafe_allow_html=True)
+        if not warning:
+            last_term = st.session_state.get("last_search_term", "")
+            msg = (
+                "El RUCT no devolvió resultados. Es posible que el servidor esté temporalmente no disponible."
+                if last_term else
+                "No se encontraron resultados. Prueba a ampliar la búsqueda."
+            )
+            st.markdown(f'<div class="warn-box">⚠️ {msg}</div>', unsafe_allow_html=True)
         if st.button("← Nueva búsqueda"):
             st.session_state["df_resultados"] = None
             st.rerun()

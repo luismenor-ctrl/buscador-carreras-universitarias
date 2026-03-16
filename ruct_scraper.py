@@ -177,7 +177,30 @@ def search_ruct(
     except requests.RequestException as e:
         return pd.DataFrame(columns=RESULT_COLUMNS), f"No se pudo conectar al RUCT: {e}"
 
+    # Extract all hidden input fields from the form (tokens, session fields, etc.)
+    hidden_fields = {}
+    if form:
+        for inp in form.find_all("input", {"type": "hidden"}):
+            name = inp.get("name")
+            value = inp.get("value", "")
+            if name:
+                hidden_fields[name] = value
+
+    # Find the submit button name/value dynamically
+    submit_name = "action:listaestudios"
+    submit_value = "Consultar"
+    if form:
+        for inp in form.find_all("input", {"type": "submit"}):
+            name = inp.get("name")
+            value = inp.get("value", "Consultar")
+            if name:
+                submit_name = name
+                submit_value = value
+                break
+
+    # Build payload: start with hidden fields, then override with our search params
     payload = {
+        **hidden_fields,
         "consulta": "1",
         "codigoEstudio": codigo.strip(),
         "descripcionEstudio": _strip_accents(descripcion.strip()),
@@ -189,7 +212,7 @@ def search_ruct(
         "codigoEstado": estado,
         "situacion": situacion,
         "buscarHistorico": historico,
-        "action:listaestudios": "Consultar",
+        submit_name: submit_value,
     }
 
     results = []
@@ -219,6 +242,14 @@ def search_ruct(
                 or "Ningun registro encontrado" in page_text
                 or "registros encontrados" in page_text
             )
+            # Detect server-side validation error: requires at least one filter
+            if "Por favor, introduzca" in page_text and "Denominaci" in page_text:
+                return (
+                    pd.DataFrame(columns=RESULT_COLUMNS),
+                    "El RUCT requiere al menos un criterio de búsqueda: "
+                    "escribe una denominación, introduce un código de título, "
+                    "o selecciona una universidad concreta.",
+                )
             if not has_marker:
                 snippet = " ".join(page_text.split())[:200]
                 return (
