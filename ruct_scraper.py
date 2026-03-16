@@ -6,6 +6,7 @@ https://www.educacion.gob.es/ruct/
 """
 
 import io
+import re
 import time
 import logging
 import unicodedata
@@ -66,6 +67,26 @@ SITUACIONES = {
 }
 
 RESULT_COLUMNS = ["codigo", "titulo", "universidad", "nivel", "estado", "url_ruct", "url_plan"]
+
+
+_INVISIBLE_CHARS = re.compile(
+    r"[\u200b\u200c\u200d\u200e\u200f\u00ad\ufeff\u2060\u180e]"
+)
+
+# Windows-1252 bytes 0x80-0x9F that sometimes leak into scraped UTF-8 text
+_CP1252_FIX = str.maketrans({
+    "\x80": "\u20ac", "\x82": "\u201a", "\x83": "\u0192", "\x84": "\u201e",
+    "\x85": "\u2026", "\x86": "\u2020", "\x87": "\u2021", "\x88": "\u02c6",
+    "\x89": "\u2030", "\x8a": "\u0160", "\x8b": "\u2039", "\x8c": "\u0152",
+    "\x8e": "\u017d", "\x91": "\u2018", "\x92": "\u2019", "\x93": "\u201c",
+    "\x94": "\u201d", "\x95": "\u2022", "\x96": "\u2013", "\x97": "\u2014",
+    "\x98": "\u02dc", "\x99": "\u2122", "\x9a": "\u0161", "\x9b": "\u203a",
+    "\x9c": "\u0153", "\x9e": "\u017e", "\x9f": "\u0178",
+})
+
+def _clean_text(text: str) -> str:
+    """Fix Windows-1252 encoding artifacts and remove invisible Unicode characters."""
+    return _INVISIBLE_CHARS.sub("", text.translate(_CP1252_FIX)).strip()
 
 
 def _strip_accents(text: str) -> str:
@@ -347,11 +368,11 @@ def _parse_table(soup: BeautifulSoup) -> list[dict]:
                 )
 
         rows.append({
-            "codigo": cells[0].text.strip(),
-            "titulo": cells[1].text.strip(),
-            "universidad": cells[2].text.strip(),
-            "nivel": cells[3].text.strip(),
-            "estado": cells[4].text.strip(),
+            "codigo": _clean_text(cells[0].text),
+            "titulo": _clean_text(cells[1].text),
+            "universidad": _clean_text(cells[2].text),
+            "nivel": _clean_text(cells[3].text),
+            "estado": _clean_text(cells[4].text),
             "url_ruct": url_ruct,
             "url_plan": url_plan,
         })
