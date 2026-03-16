@@ -256,6 +256,8 @@ st.markdown("""
         margin-bottom: 0.5rem;
     }
     .ects-seg {
+        flex-shrink: 1;
+        min-width: 1.8em;
         height: 100%;
         display: flex;
         align-items: center;
@@ -1115,12 +1117,10 @@ elif st.session_state.get("comparing"):
             val = e[cat]
             if val <= 0:
                 continue
-            pct = val / total * 100
             color = _CAT_COLORS[cat]
-            label = f"{val}" if pct > 12 else ""
             segments += (
-                f'<div class="ects-seg" style="width:{pct:.1f}%;background:{color};" '
-                f'title="{_CAT_LABELS[cat]}: {val} ECTS">{label}</div>'
+                f'<div class="ects-seg" style="flex:{val};background:{color};" '
+                f'title="{_CAT_LABELS[cat]}: {val} ECTS">{val}</div>'
             )
 
         if not segments:
