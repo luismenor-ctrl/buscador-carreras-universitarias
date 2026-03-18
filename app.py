@@ -109,6 +109,15 @@ st.markdown("""
         border-bottom: 1px solid var(--c-border);
         margin-bottom: 1.2rem;
     }
+    .sticky-bar {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: var(--c-bg);
+        border-bottom: 1px solid var(--c-border);
+        padding: 0.45rem 0;
+        margin-bottom: 1rem;
+    }
     .header-compact img {
         height: 28px;
         width: auto;
@@ -1053,17 +1062,27 @@ elif selected:
 elif st.session_state.get("comparing"):
     comp_list = st.session_state.get("comparison_list", [])
 
-    col_back, col_title = st.columns([2, 5])
-    with col_back:
-        if st.button("← Volver a resultados", use_container_width=True):
-            st.session_state["comparing"] = False
-            st.rerun()
-    with col_title:
-        st.markdown(
-            '<p style="margin:0.55rem 0 0;font-size:0.85rem;font-weight:600;color:#111827;">'
-            f'Comparando {len(comp_list)} titulaciones</p>',
-            unsafe_allow_html=True,
-        )
+    # Hidden real button — triggered by the sticky bar via JS
+    if st.button("← Volver a resultados", key="_back_comp"):
+        st.session_state["comparing"] = False
+        st.rerun()
+
+    # Sticky bar always visible while scrolling
+    st.markdown(f'''
+    <div class="sticky-bar" style="display:flex;align-items:center;gap:1.5rem;">
+      <a href="#" onclick="
+        var btns=window.parent.document.querySelectorAll('button');
+        for(var b of btns){{if(b.innerText.trim().startsWith('\u2190')){{b.click();break;}}}}
+        return false;
+      " style="display:inline-flex;align-items:center;padding:0.35rem 0.9rem;
+               background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--radius);
+               font-size:0.82rem;font-weight:500;color:var(--c-text);text-decoration:none;
+               white-space:nowrap;">← Volver a resultados</a>
+      <span style="font-size:0.85rem;font-weight:600;color:#111827;">
+        Comparando {len(comp_list)} titulaciones
+      </span>
+    </div>
+    ''', unsafe_allow_html=True)
 
     st.divider()
 
