@@ -1128,9 +1128,26 @@ elif st.session_state.get("comparing"):
                 }
         degrees_data.append(st.session_state["comparison_data"][key])
 
+    # Split into degrees with and without ECTS data
+    degrees_ok   = [d for d in degrees_data if d["ects"]["total"] > 0]
+    degrees_fail = [d for d in degrees_data if d["ects"]["total"] == 0]
+
+    if degrees_fail:
+        names = ", ".join(
+            f""{(d['ficha'].get('denominacion') or d['deg']['title'])[:60]}""
+            for d in degrees_fail
+        )
+        st.markdown(
+            f'<div class="warn-box">⚠️ Sin datos de plan de estudios publicados: {names}. '
+            f'No se incluyen en la comparación.</div>',
+            unsafe_allow_html=True,
+        )
+
+    degrees_data = degrees_ok
+
     # Summary table
     cat_keys = ["basica", "obligatoria", "optativa", "practicas", "tfg_tfm", "otros"]
-    has_any_ects = any(d["ects"]["total"] > 0 for d in degrees_data)
+    has_any_ects = bool(degrees_data)
 
     if has_any_ects:
         # Build HTML table
