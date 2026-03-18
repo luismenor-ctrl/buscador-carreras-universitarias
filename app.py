@@ -1134,7 +1134,7 @@ elif st.session_state.get("comparing"):
 
     if degrees_fail:
         names = ", ".join(
-            f""{(d['ficha'].get('denominacion') or d['deg']['title'])[:60]}""
+            (d['ficha'].get('denominacion') or d['deg']['title'])[:60]
             for d in degrees_fail
         )
         st.markdown(
