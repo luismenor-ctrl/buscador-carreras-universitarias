@@ -1288,7 +1288,7 @@ elif df_res is not None:
         st.divider()
 
         # Filters
-        col_f1, col_f2, col_f3 = st.columns([3, 2, 1])
+        col_f1, col_f2 = st.columns([3, 2])
         with col_f1:
             filter_title = st.text_input(
                 "denominacion", label_visibility="collapsed",
@@ -1297,9 +1297,6 @@ elif df_res is not None:
         with col_f2:
             univs_opts = ["Todas las universidades"] + sorted(df_res["universidad"].dropna().unique().tolist())
             filter_univ = st.selectbox("universidad", univs_opts, label_visibility="collapsed")
-        with col_f3:
-            niv_opts = ["Todos"] + sorted(df_res["nivel"].dropna().unique().tolist())
-            filter_nivel = st.selectbox("nivel", niv_opts, label_visibility="collapsed")
 
         # Apply filters
         filtered = df_res.copy()
@@ -1307,8 +1304,6 @@ elif df_res is not None:
             filtered = filtered[filtered["titulo"].str.contains(filter_title, case=False, na=False)]
         if filter_univ != "Todas las universidades":
             filtered = filtered[filtered["universidad"] == filter_univ]
-        if filter_nivel != "Todos":
-            filtered = filtered[filtered["nivel"] == filter_nivel]
 
         n_filt = len(filtered)
         if n_filt != n:
