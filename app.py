@@ -379,8 +379,17 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
         "habilita": "", "profesion_regulada": "", "acuerdo": "", "norma": "",
         "menciones": [], "especialidades": [], "boe_plan_url": "",
     }
-    if not url_ruct or not url_plan:
+    if not url_ruct:
         return ficha
+    # If url_plan is missing, try to construct it from the codigoEstudio in url_ruct
+    if not url_plan:
+        m = re.search(r"codigoEstudio=(\d+)", url_ruct)
+        if m:
+            cod = m.group(1)
+            url_plan = (
+                f"https://www.educacion.gob.es/ruct/detalles.action"
+                f"?codigoEstudio={cod}&actual=detallesbasicos"
+            )
     try:
         session = requests.Session()
         session.headers.update(_WEB_HEADERS)
@@ -606,11 +615,13 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
 
 # ─── ECTS breakdown parser ────────────────────────────────────────────────────
 _ECTS_CATS = [
-    ("basica",      ["básic", "formación bás", "formacion bas", "basica", "básica", "fbc", "fbr"]),
-    ("obligatoria", ["obligatori"]),   # covers: obligatoria/s/os
-    ("optativa",    ["optativ"]),      # covers: optativa/s, optativos
-    ("practicas",   ["práctic", "practic", "practicum"]),
-    ("tfg_tfm",     ["trabajo fin", "trabajo de fin", "tfg", "tfm"]),
+    ("basica",      ["básic", "formación bás", "formacion bas", "basica", "básica", "fbc", "fbr",
+                    "basic", "formation", "general education"]),
+    ("obligatoria", ["obligatori", "compulsory", "mandatory", "required", "core"]),
+    ("optativa",    ["optativ", "optional", "elective", "free choice"]),
+    ("practicas",   ["práctic", "practic", "practicum", "internship", "placement", "clinical"]),
+    ("tfg_tfm",     ["trabajo fin", "trabajo de fin", "tfg", "tfm",
+                    "final degree", "final project", "dissertation", "thesis"]),
 ]
 
 # BOE abbreviations used in 'Carácter' columns of detailed subject tables
@@ -620,6 +631,9 @@ _ECTS_ABBREVS = {
     "op": "optativa",
     "pe": "practicas",
     "tfg": "tfg_tfm", "tfm": "tfg_tfm",
+    # English abbreviations used in some RUCT pages
+    "ba": "basica", "co": "obligatoria", "el": "optativa",
+    "in": "practicas", "fd": "tfg_tfm",
 }
 
 
@@ -1088,7 +1102,25 @@ elif st.session_state.get("comparing"):
                 boe_url = ficha.get("boe_plan_url", "")
                 ects = _parse_ects_breakdown(boe_url)
                 if ects["total"] == 0:
-                    ects = _parse_ects_from_ruct(deg.get("url_plan", ""))
+                    url_plan_ects = deg.get("url_plan", "")
+                    if not url_plan_ects:
+                        _m = re.search(r"codigoEstudio=(\d+)", deg.get("url_ruct", ""))
+                        if _m:
+                            url_plan_ects = (
+                                f"https://www.educacion.gob.es/ruct/detalles.action"
+                                f"?codigoEstudio={_m.group(1)}&actual=detallesbasicos"
+                            )
+                    ects = _parse_ects_from_ruct(url_plan_ects)
+                if ects["total"] == 0:
+                    # Last resort: use total ECTS from ficha metadata
+                    raw = ficha.get("creditos_totales") or ficha.get("num_creditos") or ""
+                    try:
+                        t = int(float(str(raw).replace(",", ".").strip()))
+                        if 30 <= t <= 600:
+                            ects["otros"] = t
+                            ects["total"] = t
+                    except (ValueError, TypeError):
+                        pass
                 st.session_state["comparison_data"][key] = {
                     "deg": deg,
                     "ficha": ficha,
