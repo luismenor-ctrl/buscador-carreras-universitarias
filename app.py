@@ -1151,7 +1151,8 @@ elif st.session_state.get("comparing"):
 
     if has_any_ects:
         # Build HTML table
-        thead = "".join(
+        th_hab = '<th style="padding:0.4rem 0.6rem;text-align:center;font-size:0.75rem;white-space:nowrap;">Habilitante</th>'
+        thead = th_hab + "".join(
             f'<th style="padding:0.4rem 0.6rem;text-align:right;font-size:0.75rem;'
             f'white-space:nowrap;">{_CAT_LABELS[c]}</th>'
             for c in cat_keys
@@ -1160,8 +1161,15 @@ elif st.session_state.get("comparing"):
         tbody = ""
         for d in degrees_data:
             e = d["ects"]
-            denom = d["ficha"].get("denominacion") or d["deg"]["title"]
-            univ  = d["ficha"].get("universidad") or d["deg"]["university"]
+            ficha = d["ficha"]
+            denom = ficha.get("denominacion") or d["deg"]["title"]
+            univ  = ficha.get("universidad") or d["deg"]["university"]
+            es_hab = ficha.get("habilita", "").strip().upper() == "S" or bool(ficha.get("profesion_regulada", "").strip())
+            hab_cell = (
+                f'<td style="padding:0.35rem 0.6rem;text-align:center;font-size:0.78rem;'
+                f'color:{"#059669" if es_hab else "#6B7280"};">'
+                f'{"✓ Sí" if es_hab else "No"}</td>'
+            )
             row_cells = "".join(
                 f'<td style="padding:0.35rem 0.6rem;text-align:right;font-size:0.78rem;">'
                 f'{e[c] if e[c] > 0 else "—"}</td>'
@@ -1173,7 +1181,7 @@ elif st.session_state.get("comparing"):
                 f'<strong>{denom}</strong><br>'
                 f'<span style="color:#6B7280;font-size:0.68rem;">{univ}</span></td>'
             )
-            tbody += f"<tr>{name_cell}{row_cells}{total_cell}</tr>"
+            tbody += f"<tr>{name_cell}{hab_cell}{row_cells}{total_cell}</tr>"
 
         st.markdown(
             f'<div style="overflow-x:auto;margin-bottom:1.5rem;">'
