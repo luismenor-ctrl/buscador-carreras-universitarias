@@ -459,43 +459,62 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
                 ficha["_dbg"] += f" table={mod_table is not None}"
                 if mod_table:
                     top_ids = []
-                    for tr in mod_table.find_all("tr")[1:]:
+                    subject_pairs_direct = []  # (mod_id, subj_id) extracted from href
+                    rows = mod_table.find_all("tr")[1:]
+                    for tr in rows:
                         cells = tr.find_all("td")
-                        if cells:
+                        if not cells:
+                            continue
+                        # Prefer href from any anchor containing datosMateria
+                        href_pair = None
+                        for td in cells:
+                            a = td.find("a", href=True)
+                            if a and "datosMateria" in a["href"]:
+                                import urllib.parse as _uparse
+                                qs = _uparse.parse_qs(_uparse.urlparse(a["href"]).query)
+                                cm = qs.get("codMateria", [""])[0]
+                                mo = qs.get("codModulo", ["0"])[0]
+                                if cm.isdigit():
+                                    href_pair = (mo, cm)
+                                break
+                        if href_pair:
+                            subject_pairs_direct.append(href_pair)
+                        else:
                             sid = cells[0].get_text(strip=True)
                             if sid.isdigit():
                                 top_ids.append(sid)
 
+                    # Debug: show first row raw text and first href found
+                    if rows:
+                        ficha["_dbg"] += f" r0={rows[0].get_text('|', strip=True)[:60]!r}"
+                    if subject_pairs_direct:
+                        ficha["_dbg"] += f" href_pairs={len(subject_pairs_direct)}"
                     ficha["_dbg"] += f" top={len(top_ids)}"
 
-                    # Build list of (mod_id, subj_id) pairs.
-                    # When many IDs (>10) → they are subject IDs directly (use without any extra requests).
-                    # When few (≤10) → may be module IDs → expand. Any datosModulo call changes
-                    # server-side session state, so we only do extra calls in the few-IDs branch.
-                    subject_pairs = []  # list of (codModulo, codMateria)
-                    if len(top_ids) > 10:
-                        # Already subject IDs — no extra requests needed
-                        subject_pairs = [("0", sid) for sid in top_ids]
-                    else:
-                        # May be module IDs → try to expand
-                        for mod_id in top_ids:
-                            sub_url = (
-                                "https://www.educacion.gob.es/ruct/solicitud/datosModulo"
-                                f"?actual=menu.solicitud.planificacion.materiasSin&codModulo={mod_id}"
-                            )
-                            r_sub = session.get(sub_url, timeout=15)
-                            if r_sub.status_code == 200:
-                                soup_sub = BeautifulSoup(r_sub.text, "lxml")
-                                sub_table = soup_sub.find("table")
-                                if sub_table:
-                                    for tr in sub_table.find_all("tr")[1:]:
-                                        cells = tr.find_all("td")
-                                        if cells:
-                                            sid2 = cells[0].get_text(strip=True)
-                                            if sid2.isdigit():
-                                                subject_pairs.append((mod_id, sid2))
-                        if not subject_pairs:
+                    # Prefer pairs extracted from anchor hrefs (most reliable)
+                    subject_pairs = subject_pairs_direct
+                    if not subject_pairs:
+                        if len(top_ids) > 10:
                             subject_pairs = [("0", sid) for sid in top_ids]
+                        else:
+                            for mod_id in top_ids:
+                                sub_url = (
+                                    "https://www.educacion.gob.es/ruct/solicitud/datosModulo"
+                                    f"?actual=menu.solicitud.planificacion.materiasSin&codModulo={mod_id}"
+                                )
+                                r_sub = session.get(sub_url, timeout=15)
+                                if r_sub.status_code == 200:
+                                    soup_sub = BeautifulSoup(r_sub.text, "lxml")
+                                    sub_table = soup_sub.find("table")
+                                    if sub_table:
+                                        for tr in sub_table.find_all("tr")[1:]:
+                                            cells = tr.find_all("td")
+                                            if cells:
+                                                sid2 = cells[0].get_text(strip=True)
+                                                if sid2.isdigit():
+                                                    subject_pairs.append((mod_id, sid2))
+                            if not subject_pairs:
+                                subject_pairs = [("0", sid) for sid in top_ids]
 
                     ficha["_dbg"] += f" subj={len(subject_pairs)}"
 
@@ -541,14 +560,33 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
                         }
 
                     _subjects = []
-                    for mod_id, sid in subject_pairs:
+                    _first_mat_dbg = ""
+                    for i, (mod_id, sid) in enumerate(subject_pairs):
                         try:
+                            # Debug first call only
+                            if i == 0:
+                                url0 = (
+                                    "https://www.educacion.gob.es/ruct/solicitud/"
+                                    f"datosMateria!consulta.action?codModulo={mod_id}&codMateria={sid}"
+                                    "&actual=menu.solicitud.planificacion.materias.datos"
+                                )
+                                rr0 = session.get(url0, timeout=10)
+                                sp0 = BeautifulSoup(rr0.text, "lxml")
+                                el0 = sp0.find("input", {"name": "descripcion"})
+                                _first_mat_dbg = (
+                                    f" mat0_st={rr0.status_code}"
+                                    f" mat0_desc={el0.get('value','') if el0 else 'NONE'!r:.30}"
+                                    f" mat0_txt={rr0.text[:60]!r}"
+                                )
                             result = _fetch_subject(mod_id, sid)
                             if result:
                                 _subjects.append(result)
-                        except Exception:
+                        except Exception as _ex:
+                            if i == 0:
+                                _first_mat_dbg = f" mat0_exc={_ex}"
                             continue
 
+                    ficha["_dbg"] += _first_mat_dbg
                     if _subjects:
                         ficha["modules"] = _subjects
         except Exception as _e:
@@ -1083,7 +1121,7 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     # modules fetched inside _fetch_ruct_ficha session (step 4)
     modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
-    _v = "v18"
+    _v = "v19"
     if boe_url:
         plan_text, boe_subjects = _fetch_boe_plan(boe_url)
         return {
@@ -1460,7 +1498,7 @@ elif selected:
     plan_key = f"{selected['title']}|||{selected['university']}"
 
     # Invalidate cached plan if it was built by an older code version
-    _PLAN_VERSION = "v18"
+    _PLAN_VERSION = "v19"
     cached = st.session_state["study_plans"].get(plan_key)
     if cached is not None and cached.get("_v") != _PLAN_VERSION:
         del st.session_state["study_plans"][plan_key]
