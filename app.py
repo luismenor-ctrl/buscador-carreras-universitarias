@@ -453,11 +453,9 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
                 nav_url = re.sub(r"actual=[^&]*", "actual=menu.solicitud.planificacion.materiasSin", url_plan)
                 session.get(nav_url, timeout=15)
             r_mod = session.get(_RUCT_MODULES_URL, timeout=15)
-            ficha["_dbg"] = f"mod_status={r_mod.status_code}"
             if r_mod.status_code == 200:
                 soup_mod = BeautifulSoup(r_mod.text, "lxml")
                 mod_table = soup_mod.find("table")
-                ficha["_dbg"] += f" table={mod_table is not None}"
                 if mod_table:
                     import urllib.parse as _uparse
                     # Each entry: (absolute_url, codModulo, codMateria)
@@ -490,8 +488,6 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
                             sid = cells[0].get_text(strip=True)
                             if sid.isdigit():
                                 top_ids.append(sid)
-
-                    ficha["_dbg"] += f" hrefs={len(subject_triples)} top={len(top_ids)}"
 
                     # Fallback when no hrefs found in table
                     if not subject_triples:
@@ -534,8 +530,6 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
                                     )
                                     subject_triples.append((url_fb, "0", sid))
 
-                    ficha["_dbg"] += f" triples={len(subject_triples)}"
-
                     def _fetch_subject(mat_url):
                         rr = session.get(mat_url, timeout=10)
                         if rr.status_code != 200:
@@ -573,25 +567,18 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
                         }
 
                     _subjects = []
-                    _mat_dbg = ""
-                    for idx, (mat_url, mo, cm) in enumerate(subject_triples):
+                    for mat_url, mo, cm in subject_triples:
                         try:
                             result = _fetch_subject(mat_url)
                             if result:
                                 _subjects.append(result)
-                            elif idx == 0:
-                                rr0 = session.get(mat_url, timeout=10)
-                                _mat_dbg = f" m0_st={rr0.status_code} m0_txt={rr0.text[:80]!r}"
-                        except Exception as _ex:
-                            if idx == 0:
-                                _mat_dbg = f" m0_exc={type(_ex).__name__}:{_ex}"
+                        except Exception:
                             continue
 
-                    ficha["_dbg"] += _mat_dbg
                     if _subjects:
                         ficha["modules"] = _subjects
-        except Exception as _e:
-            ficha["_dbg"] = f"EXC:{_e}"
+        except Exception:
+            pass
 
         # Step 3: estudio.action — nivel, MECES, rama, campo, centro, CCAA, BOE URL
         r_est = session.get(url_ruct, timeout=15)
@@ -1561,9 +1548,6 @@ elif selected:
                 st.rerun()
 
     st.divider()
-
-    # DEBUG
-    st.warning(f"v={plan.get('_v')} | sboe={len(plan.get('subjects_boe',[]))} | sruct={len(plan.get('subjects_ruct',[]))} | txt={len(plan.get('page_text',''))} | src={plan.get('source_url','')[:60]} | dbg={plan.get('ficha',{}).get('_dbg','—')[:400]}")
 
     tab_ficha, tab_plan = st.tabs(["📋 Ficha", "📄 Plan de estudios"])
 
