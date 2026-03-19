@@ -993,72 +993,110 @@ elif selected:
     ficha = plan.get("ficha", {})
 
     denom = ficha.get("denominacion") or selected["title"]
-    st.markdown(f"### {denom}")
-    univ = ficha.get("universidad") or selected["university"]
-    st.caption(univ)
-    if selected.get("url_ruct"):
-        st.link_button("Ver ficha en el RUCT →", selected["url_ruct"])
-    st.divider()
+    univ  = ficha.get("universidad") or selected["university"]
 
-    def _row(label, value):
-        if value:
-            st.markdown(f"**{label}:** {value}")
+    # Header
+    st.markdown(
+        f'<div style="margin-bottom:0.25rem;">'
+        f'<span style="font-size:1.1rem;font-weight:700;color:#111827;">{denom}</span><br>'
+        f'<span style="font-size:0.8rem;color:#6B7280;">{univ}</span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
-    _row("Centro", ficha.get("centro"))
-    _row("Comunidad Autónoma", ficha.get("ccaa"))
-
-    nivel = ficha.get("nivel", "")
-    meces = ficha.get("meces", "")
-    if nivel and meces:
-        _row("Nivel académico", f"{nivel}, MECES {meces}")
-    elif nivel:
-        _row("Nivel académico", nivel)
-
-    _row("Rama de conocimiento", ficha.get("rama"))
-    _row("Campo de estudio", ficha.get("campo"))
-
-    habilita = ficha.get("habilita", "")
-    if habilita:
-        _row("Habilita para profesión regulada", habilita)
-    if habilita.lower() in ("sí", "si"):
-        _row("Profesión regulada", ficha.get("profesion_regulada"))
-        _row("Norma reguladora", ficha.get("norma"))
-
-    menciones = ficha.get("menciones", [])
-    especialidades = ficha.get("especialidades", [])
-    if menciones:
-        st.markdown("**Menciones:**")
-        for m in menciones:
-            cred = f" ({m['creditos']} ECTS)" if m.get("creditos") else ""
-            st.markdown(f"- {m['nombre']}{cred}")
-    if especialidades:
-        st.markdown("**Especialidades:**")
-        for e in especialidades:
-            cred = f" ({e['creditos']} ECTS)" if e.get("creditos") else ""
-            st.markdown(f"- {e['nombre']}{cred}")
+    col_ruct, col_comp = st.columns([2, 3])
+    with col_ruct:
+        if selected.get("url_ruct"):
+            st.link_button("Ver ficha en el RUCT →", selected["url_ruct"], use_container_width=True)
+    with col_comp:
+        comp_list_det = st.session_state.get("comparison_list", [])
+        deg_key_det   = selected.get("url_ruct") or f"{selected['title']}|||{selected['university']}"
+        in_comp_det   = any(
+            (c.get("url_ruct") or f"{c['title']}|||{c['university']}") == deg_key_det
+            for c in comp_list_det
+        )
+        if in_comp_det:
+            if st.button("✓ En el comparador", key="det_comp", use_container_width=True, type="primary"):
+                st.session_state["comparison_list"] = [
+                    c for c in comp_list_det
+                    if (c.get("url_ruct") or f"{c['title']}|||{c['university']}") != deg_key_det
+                ]
+                st.rerun()
+        elif len(comp_list_det) < 4:
+            if st.button("+ Añadir al comparador", key="det_comp", use_container_width=True):
+                st.session_state["comparison_list"] = comp_list_det + [{
+                    "title": selected["title"],
+                    "university": selected["university"],
+                    "url_ruct": selected.get("url_ruct", ""),
+                    "url_plan": selected.get("url_plan", ""),
+                }]
+                st.rerun()
 
     st.divider()
 
-    if plan.get("source_url"):
-        src = plan["source_url"]
-        btn_label = "Ver en el BOE →" if "boe.es" in src else "Ver plan de estudios →"
-        st.link_button(btn_label, src, use_container_width=True)
-        st.divider()
+    tab_ficha, tab_plan = st.tabs(["📋 Ficha", "📄 Plan de estudios"])
 
-    if plan.get("page_text"):
-        st.markdown(plan["page_text"])
-    elif plan.get("source_url"):
-        st.markdown(
-            '<div class="info-box">El plan de estudios está disponible en el BOE. '
-            'Pulsa el botón de arriba para consultarlo directamente.</div>',
-            unsafe_allow_html=True,
-        )
-    else:
-        st.markdown(
-            '<div class="warn-box">⚠️ No se pudo obtener el plan de estudios. '
-            'Consulta la ficha oficial usando el botón «Ver ficha en el RUCT →» de arriba.</div>',
-            unsafe_allow_html=True,
-        )
+    with tab_ficha:
+        def _row(label, value):
+            if value:
+                st.markdown(f"**{label}:** {value}")
+
+        col_a, col_b = st.columns(2)
+        with col_a:
+            _row("Centro", ficha.get("centro"))
+            _row("Comunidad Autónoma", ficha.get("ccaa"))
+            nivel = ficha.get("nivel", "")
+            meces = ficha.get("meces", "")
+            if nivel and meces:
+                _row("Nivel académico", f"{nivel} · MECES {meces}")
+            elif nivel:
+                _row("Nivel académico", nivel)
+        with col_b:
+            _row("Rama de conocimiento", ficha.get("rama"))
+            _row("Campo de estudio", ficha.get("campo"))
+            habilita = ficha.get("habilita", "")
+            if habilita.upper() == "S" or habilita.lower() in ("sí", "si"):
+                st.markdown("**Habilita para profesión regulada:** ✓ Sí")
+                _row("Profesión regulada", ficha.get("profesion_regulada"))
+                _row("Norma reguladora", ficha.get("norma"))
+            else:
+                st.markdown("**Habilita para profesión regulada:** No")
+
+        menciones      = ficha.get("menciones", [])
+        especialidades = ficha.get("especialidades", [])
+        if menciones or especialidades:
+            st.divider()
+        if menciones:
+            st.markdown("**Menciones:**")
+            for m in menciones:
+                cred = f" ({m['creditos']} ECTS)" if m.get("creditos") else ""
+                st.markdown(f"- {m['nombre']}{cred}")
+        if especialidades:
+            st.markdown("**Especialidades:**")
+            for e in especialidades:
+                cred = f" ({e['creditos']} ECTS)" if e.get("creditos") else ""
+                st.markdown(f"- {e['nombre']}{cred}")
+
+    with tab_plan:
+        if plan.get("source_url"):
+            src = plan["source_url"]
+            btn_label = "Ver en el BOE →" if "boe.es" in src else "Ver plan de estudios →"
+            st.link_button(btn_label, src, use_container_width=False)
+
+        if plan.get("page_text"):
+            st.markdown(plan["page_text"])
+        elif plan.get("source_url"):
+            st.markdown(
+                '<div class="info-box">El plan de estudios está disponible en el BOE. '
+                'Pulsa el botón de arriba para consultarlo directamente.</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                '<div class="warn-box">⚠️ No se pudo obtener el plan de estudios. '
+                'Consulta la ficha oficial usando el botón «Ver ficha en el RUCT →».</div>',
+                unsafe_allow_html=True,
+            )
 
 
 # =====================================================================
