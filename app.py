@@ -5,6 +5,7 @@ import re
 import requests
 from bs4 import BeautifulSoup
 import ruct_scraper
+from ruct_scraper import _clean_text  # used throughout app.py
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -1121,7 +1122,7 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     # modules fetched inside _fetch_ruct_ficha session (step 4)
     modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
-    _v = "v20"
+    _v = "v21"
     if boe_url:
         plan_text, boe_subjects = _fetch_boe_plan(boe_url)
         return {
@@ -1498,7 +1499,7 @@ elif selected:
     plan_key = f"{selected['title']}|||{selected['university']}"
 
     # Invalidate cached plan if it was built by an older code version
-    _PLAN_VERSION = "v20"
+    _PLAN_VERSION = "v21"
     cached = st.session_state["study_plans"].get(plan_key)
     if cached is not None and cached.get("_v") != _PLAN_VERSION:
         del st.session_state["study_plans"][plan_key]
