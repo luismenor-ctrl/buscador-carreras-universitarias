@@ -1469,7 +1469,8 @@ elif selected:
 
     st.divider()
 
-
+    # DEBUG
+    st.warning(f"v={plan.get('_v')} | sboe={len(plan.get('subjects_boe',[]))} | sruct={len(plan.get('subjects_ruct',[]))} | txt={len(plan.get('page_text',''))} | src={plan.get('source_url','')[:60]}")
 
     tab_ficha, tab_plan = st.tabs(["📋 Ficha", "📄 Plan de estudios"])
 
