@@ -923,22 +923,16 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     # modules fetched inside _fetch_ruct_ficha session (step 4)
     modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
+    _v = "v5"
     if boe_url:
         plan_text = _fetch_boe_plan(boe_url)
         if plan_text:
-            return {"ficha": ficha, "page_text": plan_text, "subjects_ruct": modules_subjects, "source_url": boe_url}
-        # BOE URL found but extraction failed
+            return {"ficha": ficha, "page_text": plan_text, "subjects_ruct": modules_subjects, "source_url": boe_url, "_v": _v}
         modules_text = "**Módulos y materias**\n\n" + "\n".join(f"- {s['nombre']}" for s in modules_subjects) if modules_subjects else ""
-        return {
-            "ficha": ficha,
-            "page_text": modules_text,
-            "subjects_ruct": modules_subjects,
-            "source_url": boe_url,
-        }
+        return {"ficha": ficha, "page_text": modules_text, "subjects_ruct": modules_subjects, "source_url": boe_url, "_v": _v}
 
-    # No BOE URL — use RUCT modules as sole source
     modules_text = "**Módulos y materias**\n\n" + "\n".join(f"- {s['nombre']}" for s in modules_subjects) if modules_subjects else ""
-    return {"ficha": ficha, "page_text": modules_text, "subjects_ruct": modules_subjects, "source_url": ""}
+    return {"ficha": ficha, "page_text": modules_text, "subjects_ruct": modules_subjects, "source_url": "", "_v": _v}
 
 
 # ─── ECTS breakdown parser ────────────────────────────────────────────────────
@@ -1295,13 +1289,10 @@ elif selected:
         st.session_state["study_plans"] = {}
     plan_key = f"{selected['title']}|||{selected['university']}"
 
-    # Invalidate cached plan if it's missing subjects_ruct or if subjects_ruct is empty
-    # and there's page_text (old cached result without structured data)
+    # Invalidate cached plan if it was built by an older code version
+    _PLAN_VERSION = "v5"
     cached = st.session_state["study_plans"].get(plan_key)
-    if cached is not None and (
-        "subjects_ruct" not in cached or
-        (not cached.get("subjects_ruct") and cached.get("page_text"))
-    ):
+    if cached is not None and cached.get("_v") != _PLAN_VERSION:
         del st.session_state["study_plans"][plan_key]
 
     if plan_key not in st.session_state["study_plans"]:
@@ -1363,7 +1354,8 @@ elif selected:
     st.divider()
 
     # DEBUG TEMPORAL
-    st.toast(f"subjects_ruct={len(plan.get('subjects_ruct',[]))} page_text={len(plan.get('page_text',''))} src={bool(plan.get('source_url'))}", icon="🔍")
+    _dbg = plan.get('subjects_ruct', [])
+    st.warning(f"🔍 DEBUG: subjects={len(_dbg)} | page_text={len(plan.get('page_text',''))} | src={bool(plan.get('source_url'))} | v={plan.get('_v','?')}")
 
     tab_ficha, tab_plan = st.tabs(["📋 Ficha", "📄 Plan de estudios"])
 
