@@ -481,33 +481,31 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
                                 if rr.status_code != 200:
                                     return None
                                 sp = BeautifulSoup(rr.text, "lxml")
-                                nom = ""
-                                car = ""
-                                ects_val = 0.0
-                                sem_num = 0
                                 # nombre
-                                el = sp.find("input", {"name": re.compile(r"denominacion$", re.I)})
-                                if el:
-                                    nom = _clean_text(el.get("value", ""))
+                                el = sp.find("input", {"name": "descripcion"})
+                                nom = _clean_text(el.get("value", "")) if el else ""
                                 # caracter
-                                el = sp.find("input", {"name": re.compile(r"caracter\.codigo$", re.I)})
+                                el = sp.find("input", {"name": "datosBasicos.caracter.codigo"})
+                                car = _clean_text(el.get("value", "")) if el else ""
+                                # total ECTS
+                                el = sp.find("input", {"name": "datosBasicos.ectsMateria"})
+                                ects_val = 0.0
                                 if el:
-                                    car = _clean_text(el.get("value", ""))
-                                # ECTS + semestre
-                                for label in sp.find_all("label"):
-                                    lbl_txt = label.get_text(strip=True)
-                                    for_id = label.get("for", "")
-                                    inp = sp.find(id=for_id) if for_id else None
-                                    val_str = inp.get("value", "").strip() if inp else ""
-                                    if lbl_txt == "ECTS Materia" and val_str:
-                                        try:
-                                            ects_val = float(val_str.replace(",", "."))
-                                        except ValueError:
-                                            pass
-                                    elif "ECTS Semestral" in lbl_txt and val_str:
-                                        m = re.search(r"Semestral\s+(\d+)", lbl_txt)
-                                        if m and sem_num == 0:
-                                            sem_num = int(m.group(1))
+                                    try:
+                                        ects_val = float(el.get("value", "0").replace(",", "."))
+                                    except ValueError:
+                                        pass
+                                # semestre: find first periodo with ects > 0
+                                sem_num = 0
+                                periodos = [i.get("value", "") for i in sp.find_all("input", {"name": "periodo"})]
+                                ects_pp = [i.get("value", "") for i in sp.find_all("input", {"name": "ects"})]
+                                for p_str, e_str in zip(periodos, ects_pp):
+                                    try:
+                                        if float(e_str.replace(",", ".")) > 0:
+                                            sem_num = int(p_str)
+                                            break
+                                    except (ValueError, TypeError):
+                                        pass
                                 if not nom:
                                     return None
                                 # Derive year from semester number (2 semesters per year)
@@ -1066,7 +1064,7 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     # modules fetched inside _fetch_ruct_ficha session (step 4)
     modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
-    _v = "v11"
+    _v = "v12"
     if boe_url:
         plan_text, boe_subjects = _fetch_boe_plan(boe_url)
         return {
@@ -1443,7 +1441,7 @@ elif selected:
     plan_key = f"{selected['title']}|||{selected['university']}"
 
     # Invalidate cached plan if it was built by an older code version
-    _PLAN_VERSION = "v11"
+    _PLAN_VERSION = "v12"
     cached = st.session_state["study_plans"].get(plan_key)
     if cached is not None and cached.get("_v") != _PLAN_VERSION:
         del st.session_state["study_plans"][plan_key]
