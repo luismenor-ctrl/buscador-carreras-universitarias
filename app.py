@@ -1232,6 +1232,10 @@ elif selected:
         st.session_state["study_plans"] = {}
     plan_key = f"{selected['title']}|||{selected['university']}"
 
+    # Invalidate cached plan if it's missing the subjects_ruct key (old format)
+    if plan_key in st.session_state["study_plans"] and "subjects_ruct" not in st.session_state["study_plans"][plan_key]:
+        del st.session_state["study_plans"][plan_key]
+
     if plan_key not in st.session_state["study_plans"]:
         with st.spinner("Cargando ficha y plan de estudios…"):
             st.session_state["study_plans"][plan_key] = _find_study_plan(
