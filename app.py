@@ -1631,11 +1631,18 @@ elif selected:
                 _creditos_summary = True
 
         if subjects:
-            if _creditos_summary and not src:
-                st.info(
-                    "El plan de estudios detallado de esta titulación aún no está publicado "
-                    "en el BOE. Se muestra la distribución de créditos registrada en el RUCT."
-                )
+            if _creditos_summary:
+                if src:
+                    st.info(
+                        "No se pudo obtener el listado detallado de asignaturas. "
+                        "Se muestra la distribución de créditos registrada en el RUCT. "
+                        "Puedes consultar el plan completo en el BOE usando el botón de arriba."
+                    )
+                else:
+                    st.info(
+                        "El plan de estudios detallado de esta titulación aún no está publicado "
+                        "en el BOE. Se muestra la distribución de créditos registrada en el RUCT."
+                    )
             # Colour map reusing comparison palette
             _SCAT_COLORS = {
                 "basica": "#1B3A6B", "obligatoria": "#0E7490",
