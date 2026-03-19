@@ -447,13 +447,11 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
 
         # Step 2b: fetch subject list (datosModulo) + details (datosMateria) in parallel
         try:
-            from concurrent.futures import ThreadPoolExecutor, as_completed as _as_completed
             r_mod = session.get(_RUCT_MODULES_URL, timeout=15)
             if r_mod.status_code == 200:
                 soup_mod = BeautifulSoup(r_mod.text, "lxml")
                 mod_table = soup_mod.find("table")
                 if mod_table:
-                    # Collect subject IDs from the table
                     subject_ids = []
                     for tr in mod_table.find_all("tr")[1:]:
                         cells = tr.find_all("td")
@@ -462,76 +460,53 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
                             if sid.isdigit():
                                 subject_ids.append(sid)
 
-                    if subject_ids:
-                        # Share cookies from the current authenticated session
-                        _cookies = dict(session.cookies)
-                        _headers = dict(session.headers)
-
-                        def _fetch_materia(sid):
+                    _subjects = []
+                    for sid in subject_ids:
+                        try:
                             url = (
                                 "https://www.educacion.gob.es/ruct/solicitud/"
                                 f"datosMateria!consulta.action?codModulo=0&codMateria={sid}"
                                 "&actual=menu.solicitud.planificacion.materias.datos"
                             )
-                            s = requests.Session()
-                            s.headers.update(_headers)
-                            s.cookies.update(_cookies)
-                            try:
-                                rr = s.get(url, timeout=10)
-                                if rr.status_code != 200:
-                                    return None
-                                sp = BeautifulSoup(rr.text, "lxml")
-                                # nombre
-                                el = sp.find("input", {"name": "descripcion"})
-                                nom = _clean_text(el.get("value", "")) if el else ""
-                                # caracter
-                                el = sp.find("input", {"name": "datosBasicos.caracter.codigo"})
-                                car = _clean_text(el.get("value", "")) if el else ""
-                                # total ECTS
-                                el = sp.find("input", {"name": "datosBasicos.ectsMateria"})
-                                ects_val = 0.0
-                                if el:
-                                    try:
-                                        ects_val = float(el.get("value", "0").replace(",", "."))
-                                    except ValueError:
-                                        pass
-                                # semestre: find first periodo with ects > 0
-                                sem_num = 0
-                                periodos = [i.get("value", "") for i in sp.find_all("input", {"name": "periodo"})]
-                                ects_pp = [i.get("value", "") for i in sp.find_all("input", {"name": "ects"})]
-                                for p_str, e_str in zip(periodos, ects_pp):
-                                    try:
-                                        if float(e_str.replace(",", ".")) > 0:
-                                            sem_num = int(p_str)
-                                            break
-                                    except (ValueError, TypeError):
-                                        pass
-                                if not nom:
-                                    return None
-                                # Derive year from semester number (2 semesters per year)
-                                curso = f"{(sem_num + 1) // 2}º" if sem_num > 0 else ""
-                                semestre = f"S{sem_num}" if sem_num > 0 else ""
-                                cat = _categorize_ects(car) or "otros"
-                                return {
-                                    "nombre": nom, "caracter": car, "categoria": cat,
-                                    "ects": ects_val, "curso": curso, "semestre": semestre,
-                                    "_sid": int(sid),
-                                }
-                            except Exception:
-                                return None
+                            rr = session.get(url, timeout=10)
+                            if rr.status_code != 200:
+                                continue
+                            sp = BeautifulSoup(rr.text, "lxml")
+                            el = sp.find("input", {"name": "descripcion"})
+                            nom = _clean_text(el.get("value", "")) if el else ""
+                            if not nom:
+                                continue
+                            el = sp.find("input", {"name": "datosBasicos.caracter.codigo"})
+                            car = _clean_text(el.get("value", "")) if el else ""
+                            el = sp.find("input", {"name": "datosBasicos.ectsMateria"})
+                            ects_val = 0.0
+                            if el:
+                                try:
+                                    ects_val = float(el.get("value", "0").replace(",", "."))
+                                except ValueError:
+                                    pass
+                            sem_num = 0
+                            periodos = [i.get("value", "") for i in sp.find_all("input", {"name": "periodo"})]
+                            ects_pp  = [i.get("value", "") for i in sp.find_all("input", {"name": "ects"})]
+                            for p_str, e_str in zip(periodos, ects_pp):
+                                try:
+                                    if float(e_str.replace(",", ".")) > 0:
+                                        sem_num = int(p_str)
+                                        break
+                                except (ValueError, TypeError):
+                                    pass
+                            curso    = f"{(sem_num + 1) // 2}º" if sem_num > 0 else ""
+                            semestre = f"S{sem_num}" if sem_num > 0 else ""
+                            cat = _categorize_ects(car) or "otros"
+                            _subjects.append({
+                                "nombre": nom, "caracter": car, "categoria": cat,
+                                "ects": ects_val, "curso": curso, "semestre": semestre,
+                            })
+                        except Exception:
+                            continue
 
-                        _subjects = []
-                        with ThreadPoolExecutor(max_workers=15) as _ex:
-                            futures = {_ex.submit(_fetch_materia, sid): sid for sid in subject_ids}
-                            for fut in _as_completed(futures):
-                                res = fut.result()
-                                if res:
-                                    _subjects.append(res)
-
-                        # Sort by original subject ID to preserve order
-                        _subjects.sort(key=lambda x: x.pop("_sid", 0))
-                        if _subjects:
-                            ficha["modules"] = _subjects
+                    if _subjects:
+                        ficha["modules"] = _subjects
         except Exception:
             pass
 
@@ -1064,7 +1039,7 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     # modules fetched inside _fetch_ruct_ficha session (step 4)
     modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
-    _v = "v12"
+    _v = "v13"
     if boe_url:
         plan_text, boe_subjects = _fetch_boe_plan(boe_url)
         return {
@@ -1441,7 +1416,7 @@ elif selected:
     plan_key = f"{selected['title']}|||{selected['university']}"
 
     # Invalidate cached plan if it was built by an older code version
-    _PLAN_VERSION = "v12"
+    _PLAN_VERSION = "v13"
     cached = st.session_state["study_plans"].get(plan_key)
     if cached is not None and cached.get("_v") != _PLAN_VERSION:
         del st.session_state["study_plans"][plan_key]
