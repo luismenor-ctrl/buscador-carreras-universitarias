@@ -445,56 +445,93 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
                 elif "especialidad" in leg_text:
                     ficha["especialidades"] = items
 
-        # Step 2b: datosModulo (isolated so any error doesn't break step 3)
+        # Step 2b: fetch subject list (datosModulo) + details (datosMateria) in parallel
         try:
+            from concurrent.futures import ThreadPoolExecutor, as_completed as _as_completed
             r_mod = session.get(_RUCT_MODULES_URL, timeout=15)
             if r_mod.status_code == 200:
                 soup_mod = BeautifulSoup(r_mod.text, "lxml")
                 mod_table = soup_mod.find("table")
                 if mod_table:
-                    mod_rows = mod_table.find_all("tr")
-                    if mod_rows:
-                        hdr = [th.get_text(separator=" ", strip=True).lower()
-                               for th in mod_rows[0].find_all(["th", "td"])]
-                        nom_c = car_c = ects_c = None
-                        for idx, h in enumerate(hdr):
-                            if any(k in h for k in ["denominaci", "nombre", "materia", "módulo",
-                                                     "modulo", "subject", "module", "asignatura"]):
-                                if nom_c is None:
-                                    nom_c = idx
-                            elif any(k in h for k in ["carácter", "caracter", "tipo", "character"]):
-                                car_c = idx
-                            elif any(k in h for k in ["ects", "crédito", "credito", "credit"]):
-                                if ects_c is None:
-                                    ects_c = idx
-                        if nom_c is None:
-                            nom_c = 1 if len(hdr) >= 2 else 0
-                        if ects_c is None and len(hdr) >= 2:
-                            ects_c = len(hdr) - 1
-                        if car_c is None and nom_c is not None and nom_c > 0:
-                            car_c = nom_c + 1 if nom_c + 1 != ects_c else None
+                    # Collect subject IDs from the table
+                    subject_ids = []
+                    for tr in mod_table.find_all("tr")[1:]:
+                        cells = tr.find_all("td")
+                        if cells:
+                            sid = cells[0].get_text(strip=True)
+                            if sid.isdigit():
+                                subject_ids.append(sid)
+
+                    if subject_ids:
+                        # Share cookies from the current authenticated session
+                        _cookies = dict(session.cookies)
+                        _headers = dict(session.headers)
+
+                        def _fetch_materia(sid):
+                            url = (
+                                "https://www.educacion.gob.es/ruct/solicitud/"
+                                f"datosMateria!consulta.action?codModulo=0&codMateria={sid}"
+                                "&actual=menu.solicitud.planificacion.materias.datos"
+                            )
+                            s = requests.Session()
+                            s.headers.update(_headers)
+                            s.cookies.update(_cookies)
+                            try:
+                                rr = s.get(url, timeout=10)
+                                if rr.status_code != 200:
+                                    return None
+                                sp = BeautifulSoup(rr.text, "lxml")
+                                nom = ""
+                                car = ""
+                                ects_val = 0.0
+                                sem_num = 0
+                                # nombre
+                                el = sp.find("input", {"name": re.compile(r"denominacion$", re.I)})
+                                if el:
+                                    nom = _clean_text(el.get("value", ""))
+                                # caracter
+                                el = sp.find("input", {"name": re.compile(r"caracter\.codigo$", re.I)})
+                                if el:
+                                    car = _clean_text(el.get("value", ""))
+                                # ECTS + semestre
+                                for label in sp.find_all("label"):
+                                    lbl_txt = label.get_text(strip=True)
+                                    for_id = label.get("for", "")
+                                    inp = sp.find(id=for_id) if for_id else None
+                                    val_str = inp.get("value", "").strip() if inp else ""
+                                    if lbl_txt == "ECTS Materia" and val_str:
+                                        try:
+                                            ects_val = float(val_str.replace(",", "."))
+                                        except ValueError:
+                                            pass
+                                    elif "ECTS Semestral" in lbl_txt and val_str:
+                                        m = re.search(r"Semestral\s+(\d+)", lbl_txt)
+                                        if m and sem_num == 0:
+                                            sem_num = int(m.group(1))
+                                if not nom:
+                                    return None
+                                # Derive year from semester number (2 semesters per year)
+                                curso = f"{(sem_num + 1) // 2}º" if sem_num > 0 else ""
+                                semestre = f"S{sem_num}" if sem_num > 0 else ""
+                                cat = _categorize_ects(car) or "otros"
+                                return {
+                                    "nombre": nom, "caracter": car, "categoria": cat,
+                                    "ects": ects_val, "curso": curso, "semestre": semestre,
+                                    "_sid": int(sid),
+                                }
+                            except Exception:
+                                return None
+
                         _subjects = []
-                        for tr in mod_rows[1:]:
-                            cells = tr.find_all("td")
-                            if len(cells) < 2:
-                                continue
-                            nom = _clean_text(cells[nom_c].get_text(strip=True)) if nom_c is not None and nom_c < len(cells) else ""
-                            if not nom or any(k in nom.lower() for k in ["total", "suma"]):
-                                continue
-                            ects_val = 0.0
-                            if ects_c is not None and ects_c < len(cells):
-                                try:
-                                    import re as _rem
-                                    _mm = _rem.search(r"[\d,\.]+", cells[ects_c].get_text(strip=True))
-                                    ects_val = float(_mm.group().replace(",", ".")) if _mm else 0.0
-                                except (ValueError, AttributeError):
-                                    pass
-                            car = _clean_text(cells[car_c].get_text(strip=True)) if car_c is not None and car_c < len(cells) else ""
-                            cat = _categorize_ects(car) or "otros"
-                            _subjects.append({
-                                "nombre": nom, "caracter": car, "categoria": cat,
-                                "ects": ects_val, "curso": "", "semestre": "",
-                            })
+                        with ThreadPoolExecutor(max_workers=15) as _ex:
+                            futures = {_ex.submit(_fetch_materia, sid): sid for sid in subject_ids}
+                            for fut in _as_completed(futures):
+                                res = fut.result()
+                                if res:
+                                    _subjects.append(res)
+
+                        # Sort by original subject ID to preserve order
+                        _subjects.sort(key=lambda x: x.pop("_sid", 0))
                         if _subjects:
                             ficha["modules"] = _subjects
         except Exception:
@@ -1029,7 +1066,7 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     # modules fetched inside _fetch_ruct_ficha session (step 4)
     modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
-    _v = "v10"
+    _v = "v11"
     if boe_url:
         plan_text, boe_subjects = _fetch_boe_plan(boe_url)
         return {
@@ -1406,7 +1443,7 @@ elif selected:
     plan_key = f"{selected['title']}|||{selected['university']}"
 
     # Invalidate cached plan if it was built by an older code version
-    _PLAN_VERSION = "v10"
+    _PLAN_VERSION = "v11"
     cached = st.session_state["study_plans"].get(plan_key)
     if cached is not None and cached.get("_v") != _PLAN_VERSION:
         del st.session_state["study_plans"][plan_key]
