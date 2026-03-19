@@ -15,7 +15,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
-st.toast("v9 CARGADA", icon="✅")  # DEBUG
+
 # ─── CSS ──────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
@@ -660,14 +660,112 @@ def _parse_boe_subjects_from_content(content) -> list[dict]:
     return subjects
 
 
+def _parse_boe_subjects_from_xml(texto) -> list[dict]:
+    """
+    Extract per-subject rows from the <texto> element of a BOE xml.php response.
+    Same logic as _parse_boe_subjects_from_content but for ElementTree nodes.
+    """
+    subjects = []
+    for table in texto.findall(".//table"):
+        rows = table.findall(".//tr")
+        if len(rows) < 4:
+            continue
+        header_cells = [" ".join(td.itertext()).strip().lower() for td in rows[0].findall(".//td")]
+        nom_col = car_col = ects_col = cur_col = sem_col = None
+        for idx, h in enumerate(header_cells):
+            if any(k in h for k in ["denominaci", "nombre", "materia", "asignatura", "módulo", "modulo"]):
+                if nom_col is None:
+                    nom_col = idx
+            elif any(k in h for k in ["carácter", "caracter", "tipo", "naturaleza"]):
+                car_col = idx
+            elif any(k in h for k in ["ects", "crédito", "credito"]):
+                if ects_col is None:
+                    ects_col = idx
+            elif "curso" in h:
+                cur_col = idx
+            elif any(k in h for k in ["semestre", "período", "periodo", "cuatr"]):
+                sem_col = idx
+        if nom_col is None or ects_col is None:
+            continue
+        table_subjects = []
+        for tr in rows[1:]:
+            cells = tr.findall(".//td")
+            max_needed = max(c for c in [nom_col, car_col, ects_col, cur_col, sem_col] if c is not None)
+            if len(cells) <= max_needed:
+                continue
+            nom = _clean_text(" ".join(cells[nom_col].itertext()).strip())
+            if not nom or any(k in nom.lower() for k in ["total", "suma", "créditos"]):
+                continue
+            try:
+                ects_val = float(" ".join(cells[ects_col].itertext()).strip().replace(",", "."))
+                if ects_val <= 0 or ects_val > 60:
+                    continue
+            except (ValueError, IndexError):
+                continue
+            car = _clean_text(" ".join(cells[car_col].itertext()).strip()) if car_col is not None and car_col < len(cells) else ""
+            cur = _clean_text(" ".join(cells[cur_col].itertext()).strip()) if cur_col is not None and cur_col < len(cells) else ""
+            sem = _clean_text(" ".join(cells[sem_col].itertext()).strip()) if sem_col is not None and sem_col < len(cells) else ""
+            cat = _categorize_ects(car) or "otros"
+            table_subjects.append({"nombre": nom, "caracter": car, "categoria": cat,
+                                    "ects": ects_val, "curso": cur, "semestre": sem})
+        total = sum(s["ects"] for s in table_subjects)
+        max_individual = max((s["ects"] for s in table_subjects), default=0)
+        if len(table_subjects) >= 8 and total >= 90 and max_individual <= 30:
+            if total > sum(s["ects"] for s in subjects):
+                subjects = table_subjects
+    return subjects
+
+
+def _boe_txt_to_xml_url(txt_url: str) -> str:
+    """Convert a BOE txt.php URL to its xml.php equivalent."""
+    return txt_url.replace("txt.php", "xml.php")
+
+
 def _fetch_boe_plan(url: str) -> tuple[str, list]:
     """
-    Fetch a BOE txt.php page and return (plan_text, subjects_list).
-    plan_text: markdown representation of tables + paragraphs (capped at 14000 chars)
-    subjects_list: structured per-subject list from _parse_boe_subjects_from_content
+    Fetch a BOE plan page and return (plan_text, subjects_list).
+    Tries xml.php first (structured API, more reliable on cloud), falls back to txt.php HTML.
     """
     if not url:
         return "", []
+
+    # ── Try XML endpoint first ────────────────────────────────────────────────
+    try:
+        import xml.etree.ElementTree as _ET
+        xml_url = _boe_txt_to_xml_url(url)
+        rx = requests.get(xml_url, headers=_WEB_HEADERS, timeout=15)
+        if rx.status_code == 200 and rx.content:
+            root = _ET.fromstring(rx.content)
+            texto = root.find("texto")
+            if texto is not None:
+                subjects = _parse_boe_subjects_from_xml(texto)
+                # Build markdown text from XML tables and paragraphs
+                parts = []
+                past_first_table = False
+                for child in texto:
+                    if child.tag == "table":
+                        past_first_table = True
+                        rows = child.findall(".//tr")
+                        if rows:
+                            md_rows = []
+                            for i, tr in enumerate(rows):
+                                cells = [" ".join(td.itertext()).strip() for td in tr.findall(".//td")]
+                                if not cells:
+                                    continue
+                                md_rows.append("| " + " | ".join(cells) + " |")
+                                if i == 0:
+                                    md_rows.append("|" + "|".join([" --- "] * len(cells)) + "|")
+                            if md_rows:
+                                parts.append("\n".join(md_rows))
+                    elif child.tag in ("p", "h2", "h3", "h4") and past_first_table:
+                        t = " ".join(child.itertext()).strip()
+                        if t:
+                            parts.append(t)
+                return "\n\n".join(parts)[:14000], subjects
+    except Exception:
+        pass
+
+    # ── Fallback: HTML txt.php ────────────────────────────────────────────────
     try:
         r = requests.get(url, headers=_WEB_HEADERS, timeout=15)
         if r.status_code >= 400:
@@ -677,7 +775,6 @@ def _fetch_boe_plan(url: str) -> tuple[str, list]:
         if not content:
             return "", []
 
-        # Parse subjects before decomposing links
         subjects = _parse_boe_subjects_from_content(content)
 
         for el in content(["script", "style", "a"]):
@@ -932,7 +1029,7 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     # modules fetched inside _fetch_ruct_ficha session (step 4)
     modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
-    _v = "v9"
+    _v = "v10"
     if boe_url:
         plan_text, boe_subjects = _fetch_boe_plan(boe_url)
         return {
@@ -1309,7 +1406,7 @@ elif selected:
     plan_key = f"{selected['title']}|||{selected['university']}"
 
     # Invalidate cached plan if it was built by an older code version
-    _PLAN_VERSION = "v9"
+    _PLAN_VERSION = "v10"
     cached = st.session_state["study_plans"].get(plan_key)
     if cached is not None and cached.get("_v") != _PLAN_VERSION:
         del st.session_state["study_plans"][plan_key]
