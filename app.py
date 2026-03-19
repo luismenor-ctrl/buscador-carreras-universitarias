@@ -559,6 +559,94 @@ def _fetch_boe_plan(url: str) -> str:
         return ""
 
 
+def _parse_boe_subjects(url: str) -> list[dict]:
+    """
+    Parse the BOE plan HTML to extract a per-subject breakdown.
+    Returns list of dicts: {nombre, caracter, categoria, ects, curso, semestre}
+    Only returns data from the 'detail' table (many rows, total >= 60 ECTS).
+    """
+    subjects = []
+    if not url:
+        return subjects
+    try:
+        r = requests.get(url, headers=_WEB_HEADERS, timeout=15)
+        if r.status_code >= 400:
+            return subjects
+        soup = BeautifulSoup(r.text, "lxml")
+        content = soup.find(id="textoxslt")
+        if not content:
+            return subjects
+
+        for table in content.find_all("table"):
+            if table.find_parent("table"):
+                continue
+            rows = table.find_all("tr")
+            if len(rows) < 4:
+                continue
+
+            header_cells = [th.get_text(strip=True).lower()
+                            for th in rows[0].find_all(["th", "td"])]
+            nom_col = car_col = ects_col = cur_col = sem_col = None
+            for idx, h in enumerate(header_cells):
+                if any(k in h for k in ["denominaci", "nombre", "materia", "asignatura", "módulo", "modulo"]):
+                    if nom_col is None:
+                        nom_col = idx
+                elif any(k in h for k in ["carácter", "caracter", "tipo", "naturaleza"]):
+                    car_col = idx
+                elif any(k in h for k in ["ects", "crédito", "credito"]):
+                    if ects_col is None:
+                        ects_col = idx
+                elif "curso" in h:
+                    cur_col = idx
+                elif any(k in h for k in ["semestre", "período", "periodo", "cuatr"]):
+                    sem_col = idx
+
+            if nom_col is None or ects_col is None:
+                continue
+
+            table_subjects = []
+            for tr in rows[1:]:
+                cells = tr.find_all(["td", "th"])
+                if not cells:
+                    continue
+                max_needed = max(c for c in [nom_col, car_col, ects_col, cur_col, sem_col] if c is not None)
+                if len(cells) <= max_needed:
+                    continue
+                nom = _clean_text(cells[nom_col].get_text(strip=True))
+                if not nom:
+                    continue
+                if any(k in nom.lower() for k in ["total", "suma", "créditos"]):
+                    continue
+                try:
+                    ects_raw = cells[ects_col].get_text(strip=True).replace(",", ".").strip()
+                    ects_val = float(ects_raw)
+                    if ects_val <= 0 or ects_val > 60:
+                        continue
+                except (ValueError, IndexError):
+                    continue
+                car = _clean_text(cells[car_col].get_text(strip=True)) if car_col is not None and car_col < len(cells) else ""
+                cur = _clean_text(cells[cur_col].get_text(strip=True)) if cur_col is not None and cur_col < len(cells) else ""
+                sem = _clean_text(cells[sem_col].get_text(strip=True)) if sem_col is not None and sem_col < len(cells) else ""
+                cat = _categorize_ects(car) or "otros"
+                table_subjects.append({
+                    "nombre": nom,
+                    "caracter": car,
+                    "categoria": cat,
+                    "ects": ects_val,
+                    "curso": cur,
+                    "semestre": sem,
+                })
+
+            total = sum(s["ects"] for s in table_subjects)
+            if len(table_subjects) >= 5 and total >= 60:
+                subjects.extend(table_subjects)
+                break  # use only the first valid detail table
+
+    except Exception:
+        pass
+    return subjects
+
+
 def _fetch_ruct_modules(url_plan: str) -> str:
     """
     Fallback: fetch the 'Módulos o Materias' static page from RUCT.
@@ -1078,14 +1166,84 @@ elif selected:
                 st.markdown(f"- {e['nombre']}{cred}")
 
     with tab_plan:
-        if plan.get("source_url"):
-            src = plan["source_url"]
+        src = plan.get("source_url", "")
+        if src:
             btn_label = "Ver en el BOE →" if "boe.es" in src else "Ver plan de estudios →"
             st.link_button(btn_label, src, use_container_width=False)
 
-        if plan.get("page_text"):
+        # Try structured subject table first
+        subjects = _parse_boe_subjects(src) if src else []
+
+        if subjects:
+            # Colour map reusing comparison palette
+            _SCAT_COLORS = {
+                "basica": "#1B3A6B", "obligatoria": "#0E7490",
+                "optativa": "#D97706", "practicas": "#7C3AED",
+                "tfg_tfm": "#059669", "otros": "#9CA3AF",
+            }
+            _SCAT_LABELS = {
+                "basica": "Básica", "obligatoria": "Obligatoria",
+                "optativa": "Optativa", "practicas": "Prácticas",
+                "tfg_tfm": "TFG/TFM", "otros": "Otros",
+            }
+
+            # Group by curso
+            cursos: dict = {}
+            for s in subjects:
+                key = s["curso"].strip() or "Sin curso"
+                cursos.setdefault(key, []).append(s)
+
+            # Sort curso keys: numeric first, then text
+            def _curso_key(k):
+                import re as _re
+                m = _re.search(r"\d+", k)
+                return (0, int(m.group())) if m else (1, k)
+
+            th_style = "padding:0.35rem 0.6rem;text-align:left;font-size:0.75rem;font-weight:600;background:#F3F4F6;border-bottom:2px solid #E5E7EB;white-space:nowrap;"
+            td_style = "padding:0.3rem 0.6rem;font-size:0.78rem;border-bottom:1px solid #F3F4F6;vertical-align:top;"
+
+            for curso_key in sorted(cursos.keys(), key=_curso_key):
+                asigs = cursos[curso_key]
+                label = f"📚 {curso_key}" if curso_key != "Sin curso" else "📚 Asignaturas"
+                total_ects = sum(a["ects"] for a in asigs)
+                st.markdown(
+                    f'<div style="margin:1rem 0 0.4rem;font-size:0.88rem;font-weight:700;'
+                    f'color:#1B3A6B;">{label} &nbsp;'
+                    f'<span style="font-weight:400;color:#6B7280;font-size:0.78rem;">({total_ects:.0f} ECTS)</span></div>',
+                    unsafe_allow_html=True,
+                )
+                rows_html = ""
+                for a in asigs:
+                    color = _SCAT_COLORS.get(a["categoria"], "#9CA3AF")
+                    cat_label = _SCAT_LABELS.get(a["categoria"], "Otros")
+                    badge = f'<span style="background:{color};color:#fff;padding:0.1rem 0.45rem;border-radius:10px;font-size:0.68rem;font-weight:600;white-space:nowrap;">{cat_label}</span>'
+                    sem_cell = f'<td style="{td_style}color:#6B7280;">{a["semestre"]}</td>' if a["semestre"] else ""
+                    rows_html += (
+                        f'<tr>'
+                        f'<td style="{td_style}">{a["nombre"]}</td>'
+                        f'<td style="{td_style}">{badge}</td>'
+                        f'<td style="{td_style};text-align:right;font-weight:600;">{a["ects"]:.0f}</td>'
+                        f'{sem_cell}'
+                        f'</tr>'
+                    )
+                has_sem = any(a["semestre"] for a in asigs)
+                sem_th = f'<th style="{th_style}">Semestre</th>' if has_sem else ""
+                st.markdown(
+                    f'<div style="overflow-x:auto;margin-bottom:1rem;">'
+                    f'<table style="border-collapse:collapse;width:100%;font-family:Inter,sans-serif;">'
+                    f'<thead><tr>'
+                    f'<th style="{th_style}">Asignatura</th>'
+                    f'<th style="{th_style}">Tipo</th>'
+                    f'<th style="{th_style};text-align:right;">ECTS</th>'
+                    f'{sem_th}'
+                    f'</tr></thead>'
+                    f'<tbody>{rows_html}</tbody>'
+                    f'</table></div>',
+                    unsafe_allow_html=True,
+                )
+        elif plan.get("page_text"):
             st.markdown(plan["page_text"])
-        elif plan.get("source_url"):
+        elif src:
             st.markdown(
                 '<div class="info-box">El plan de estudios está disponible en el BOE. '
                 'Pulsa el botón de arriba para consultarlo directamente.</div>',
