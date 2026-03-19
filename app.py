@@ -458,44 +458,50 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
                 mod_table = soup_mod.find("table")
                 ficha["_dbg"] += f" table={mod_table is not None}"
                 if mod_table:
+                    import urllib.parse as _uparse
+                    # Each entry: (absolute_url, codModulo, codMateria)
+                    subject_triples = []
                     top_ids = []
-                    subject_pairs_direct = []  # (mod_id, subj_id) extracted from href
                     rows = mod_table.find_all("tr")[1:]
                     for tr in rows:
                         cells = tr.find_all("td")
                         if not cells:
                             continue
-                        # Prefer href from any anchor containing datosMateria
-                        href_pair = None
+                        found = False
                         for td in cells:
                             a = td.find("a", href=True)
                             if a and "datosMateria" in a["href"]:
-                                import urllib.parse as _uparse
-                                qs = _uparse.parse_qs(_uparse.urlparse(a["href"]).query)
+                                href = a["href"]
+                                if href.startswith("http"):
+                                    abs_url = href
+                                elif href.startswith("/"):
+                                    abs_url = f"https://www.educacion.gob.es{href}"
+                                else:
+                                    abs_url = f"https://www.educacion.gob.es/ruct/solicitud/{href}"
+                                qs = _uparse.parse_qs(_uparse.urlparse(abs_url).query)
                                 cm = qs.get("codMateria", [""])[0]
                                 mo = qs.get("codModulo", ["0"])[0]
                                 if cm.isdigit():
-                                    href_pair = (mo, cm)
+                                    subject_triples.append((abs_url, mo, cm))
+                                    found = True
                                 break
-                        if href_pair:
-                            subject_pairs_direct.append(href_pair)
-                        else:
+                        if not found:
                             sid = cells[0].get_text(strip=True)
                             if sid.isdigit():
                                 top_ids.append(sid)
 
-                    # Debug: show first row raw text and first href found
-                    if rows:
-                        ficha["_dbg"] += f" r0={rows[0].get_text('|', strip=True)[:60]!r}"
-                    if subject_pairs_direct:
-                        ficha["_dbg"] += f" href_pairs={len(subject_pairs_direct)}"
-                    ficha["_dbg"] += f" top={len(top_ids)}"
+                    ficha["_dbg"] += f" hrefs={len(subject_triples)} top={len(top_ids)}"
 
-                    # Prefer pairs extracted from anchor hrefs (most reliable)
-                    subject_pairs = subject_pairs_direct
-                    if not subject_pairs:
+                    # Fallback when no hrefs found in table
+                    if not subject_triples:
                         if len(top_ids) > 10:
-                            subject_pairs = [("0", sid) for sid in top_ids]
+                            for sid in top_ids:
+                                url_fb = (
+                                    "https://www.educacion.gob.es/ruct/solicitud/"
+                                    f"datosMateria!consulta.action?codModulo=0&codMateria={sid}"
+                                    "&actual=menu.solicitud.planificacion.materias.datos"
+                                )
+                                subject_triples.append((url_fb, "0", sid))
                         else:
                             for mod_id in top_ids:
                                 sub_url = (
@@ -507,24 +513,30 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
                                     soup_sub = BeautifulSoup(r_sub.text, "lxml")
                                     sub_table = soup_sub.find("table")
                                     if sub_table:
-                                        for tr in sub_table.find_all("tr")[1:]:
-                                            cells = tr.find_all("td")
-                                            if cells:
-                                                sid2 = cells[0].get_text(strip=True)
+                                        for tr2 in sub_table.find_all("tr")[1:]:
+                                            cells2 = tr2.find_all("td")
+                                            if cells2:
+                                                sid2 = cells2[0].get_text(strip=True)
                                                 if sid2.isdigit():
-                                                    subject_pairs.append((mod_id, sid2))
-                            if not subject_pairs:
-                                subject_pairs = [("0", sid) for sid in top_ids]
+                                                    url_fb = (
+                                                        "https://www.educacion.gob.es/ruct/solicitud/"
+                                                        f"datosMateria!consulta.action?codModulo={mod_id}&codMateria={sid2}"
+                                                        "&actual=menu.solicitud.planificacion.materias.datos"
+                                                    )
+                                                    subject_triples.append((url_fb, mod_id, sid2))
+                            if not subject_triples:
+                                for sid in top_ids:
+                                    url_fb = (
+                                        "https://www.educacion.gob.es/ruct/solicitud/"
+                                        f"datosMateria!consulta.action?codModulo=0&codMateria={sid}"
+                                        "&actual=menu.solicitud.planificacion.materias.datos"
+                                    )
+                                    subject_triples.append((url_fb, "0", sid))
 
-                    ficha["_dbg"] += f" subj={len(subject_pairs)}"
+                    ficha["_dbg"] += f" triples={len(subject_triples)}"
 
-                    def _fetch_subject(mod_id, sid):
-                        url = (
-                            "https://www.educacion.gob.es/ruct/solicitud/"
-                            f"datosMateria!consulta.action?codModulo={mod_id}&codMateria={sid}"
-                            "&actual=menu.solicitud.planificacion.materias.datos"
-                        )
-                        rr = session.get(url, timeout=10)
+                    def _fetch_subject(mat_url):
+                        rr = session.get(mat_url, timeout=10)
                         if rr.status_code != 200:
                             return None
                         sp = BeautifulSoup(rr.text, "lxml")
@@ -542,8 +554,8 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
                             except ValueError:
                                 pass
                         sem_num = 0
-                        periodos = [i.get("value", "") for i in sp.find_all("input", {"name": "periodo"})]
-                        ects_pp  = [i.get("value", "") for i in sp.find_all("input", {"name": "ects"})]
+                        periodos = [inp.get("value", "") for inp in sp.find_all("input", {"name": "periodo"})]
+                        ects_pp  = [inp.get("value", "") for inp in sp.find_all("input", {"name": "ects"})]
                         for p_str, e_str in zip(periodos, ects_pp):
                             try:
                                 if float(e_str.replace(",", ".")) > 0:
@@ -560,33 +572,21 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
                         }
 
                     _subjects = []
-                    _first_mat_dbg = ""
-                    for i, (mod_id, sid) in enumerate(subject_pairs):
+                    _mat_dbg = ""
+                    for idx, (mat_url, mo, cm) in enumerate(subject_triples):
                         try:
-                            # Debug first call only
-                            if i == 0:
-                                url0 = (
-                                    "https://www.educacion.gob.es/ruct/solicitud/"
-                                    f"datosMateria!consulta.action?codModulo={mod_id}&codMateria={sid}"
-                                    "&actual=menu.solicitud.planificacion.materias.datos"
-                                )
-                                rr0 = session.get(url0, timeout=10)
-                                sp0 = BeautifulSoup(rr0.text, "lxml")
-                                el0 = sp0.find("input", {"name": "descripcion"})
-                                _first_mat_dbg = (
-                                    f" mat0_st={rr0.status_code}"
-                                    f" mat0_desc={el0.get('value','') if el0 else 'NONE'!r:.30}"
-                                    f" mat0_txt={rr0.text[:60]!r}"
-                                )
-                            result = _fetch_subject(mod_id, sid)
+                            result = _fetch_subject(mat_url)
                             if result:
                                 _subjects.append(result)
+                            elif idx == 0:
+                                rr0 = session.get(mat_url, timeout=10)
+                                _mat_dbg = f" m0_st={rr0.status_code} m0_txt={rr0.text[:80]!r}"
                         except Exception as _ex:
-                            if i == 0:
-                                _first_mat_dbg = f" mat0_exc={_ex}"
+                            if idx == 0:
+                                _mat_dbg = f" m0_exc={type(_ex).__name__}:{_ex}"
                             continue
 
-                    ficha["_dbg"] += _first_mat_dbg
+                    ficha["_dbg"] += _mat_dbg
                     if _subjects:
                         ficha["modules"] = _subjects
         except Exception as _e:
@@ -1121,7 +1121,7 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     # modules fetched inside _fetch_ruct_ficha session (step 4)
     modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
-    _v = "v19"
+    _v = "v20"
     if boe_url:
         plan_text, boe_subjects = _fetch_boe_plan(boe_url)
         return {
@@ -1498,7 +1498,7 @@ elif selected:
     plan_key = f"{selected['title']}|||{selected['university']}"
 
     # Invalidate cached plan if it was built by an older code version
-    _PLAN_VERSION = "v19"
+    _PLAN_VERSION = "v20"
     cached = st.session_state["study_plans"].get(plan_key)
     if cached is not None and cached.get("_v") != _PLAN_VERSION:
         del st.session_state["study_plans"][plan_key]
@@ -1562,7 +1562,7 @@ elif selected:
     st.divider()
 
     # DEBUG
-    st.warning(f"v={plan.get('_v')} | sboe={len(plan.get('subjects_boe',[]))} | sruct={len(plan.get('subjects_ruct',[]))} | txt={len(plan.get('page_text',''))} | src={plan.get('source_url','')[:60]} | dbg={plan.get('ficha',{}).get('_dbg','—')[:120]}")
+    st.warning(f"v={plan.get('_v')} | sboe={len(plan.get('subjects_boe',[]))} | sruct={len(plan.get('subjects_ruct',[]))} | txt={len(plan.get('page_text',''))} | src={plan.get('source_url','')[:60]} | dbg={plan.get('ficha',{}).get('_dbg','—')[:400]}")
 
     tab_ficha, tab_plan = st.tabs(["📋 Ficha", "📄 Plan de estudios"])
 
