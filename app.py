@@ -330,6 +330,53 @@ st.markdown("""
         margin-right: 0.4rem;
         margin-bottom: 0.3rem;
     }
+
+    /* ── Nivel badge on results ── */
+    .nivel-pill {
+        display: inline-block;
+        font-size: 0.62rem;
+        font-weight: 600;
+        padding: 0.07rem 0.42rem;
+        border-radius: 999px;
+        background: var(--c-navy-lt);
+        color: var(--c-navy);
+        vertical-align: middle;
+        margin-left: 0.4rem;
+        letter-spacing: 0.02em;
+    }
+
+    /* ── Ficha info grid ── */
+    .ficha-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+        margin-bottom: 1.1rem;
+    }
+    @media (max-width: 600px) { .ficha-grid { grid-template-columns: 1fr; } }
+    .ficha-cell {
+        background: var(--c-surface);
+        border: 1px solid var(--c-border);
+        border-radius: var(--radius);
+        padding: 0.55rem 0.8rem;
+    }
+    .ficha-label {
+        font-size: 0.63rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--c-muted);
+        margin-bottom: 0.18rem;
+    }
+    .ficha-value {
+        font-size: 0.85rem;
+        color: var(--c-text);
+        font-weight: 500;
+        line-height: 1.35;
+    }
+    .ficha-value-yes {
+        color: #059669;
+        font-weight: 600;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -651,6 +698,87 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
                         if a and "boe.es" in a["href"] and ".pdf" in a["href"]:
                             ficha["boe_plan_url"] = _boe_pdf_to_html(a["href"])
                             break
+    except Exception:
+        pass
+    return ficha
+
+
+def _fetch_ruct_ficha_quick(url_ruct: str, url_plan: str = "") -> dict:
+    """
+    Lightweight version of _fetch_ruct_ficha that skips subject fetching (step 2b).
+    Only retrieves metadata + ECTS credit distribution. Used for the comparator.
+    """
+    ficha: dict = {"boe_plan_url": ""}
+    if not url_plan and url_ruct:
+        m = re.search(r"codigoEstudio=(\d+)", url_ruct)
+        if m:
+            url_plan = (
+                f"https://www.educacion.gob.es/ruct/detalles.action"
+                f"?codigoEstudio={m.group(1)}&actual=detallesbasicos"
+            )
+    try:
+        session = requests.Session()
+        session.headers.update(_WEB_HEADERS)
+        session.get(_RUCT_INIT_URL, timeout=15)
+        r_det = session.get(url_plan, timeout=15)
+        if r_det.status_code < 400:
+            soup_det = BeautifulSoup(r_det.text, "lxml")
+            def _inp(name):
+                el = soup_det.find("input", {"name": name})
+                return el["value"].strip() if el and el.get("value") else ""
+            ficha["denominacion"] = _inp("denominacion")
+            ficha["habilita"] = _inp("habilita")
+            ficha["profesion_regulada"] = _inp("codigoProfesionRegulada")
+        r_est = session.get(url_ruct, timeout=15)
+        r_est.raise_for_status()
+        soup_est = BeautifulSoup(r_est.text, "lxml")
+        def _sid(span_id):
+            el = soup_est.find(id=span_id)
+            return el.get_text(strip=True) if el else ""
+        nivel_raw = _sid("estudio_descripcionTipo")
+        ficha["nivel"] = nivel_raw.split(" - ")[0].strip() if " - " in nivel_raw else nivel_raw
+        ficha["meces"] = _sid("estudio_nivelMeces")
+        ficha["rama"] = _sid("estudio_descripcionRama")
+        ficha["campo"] = _sid("estudio_descripcionAmbito")
+        _ects_labels = [
+            ("estudio_creditos_fbasic",  "Formación Básica",           "basica"),
+            ("estudio_creditos_obl",     "Obligatorios",                "obligatoria"),
+            ("estudio_creditos_opt",     "Optativos",                   "optativa"),
+            ("estudio_creditos_pracext", "Prácticas Externas",          "practicas"),
+            ("estudio_creditos_trbfin",  "Trabajo Fin de Grado/Máster", "tfg_tfm"),
+        ]
+        creditos = {}
+        for lbl_for, nombre, cat in _ects_labels:
+            el = soup_est.find("label", {"for": lbl_for})
+            if el:
+                txt = el.get_text(strip=True)
+                idx = txt.rfind(":")
+                if idx >= 0:
+                    try:
+                        creditos[cat] = {"nombre": nombre, "ects": float(txt[idx+1:].strip().replace(",", "."))}
+                    except ValueError:
+                        pass
+        if creditos:
+            ficha["creditos"] = creditos
+        tthree = soup_est.find("div", id="tthree")
+        if tthree:
+            tbl = tthree.find("table", id="centro")
+            if tbl:
+                rows = tbl.find_all("tr")[1:]
+                if rows:
+                    cells = rows[0].find_all("td")
+                    if len(cells) >= 3:
+                        ficha["universidad"] = cells[0].get_text(strip=True)
+                        ficha["centro"] = cells[2].get_text(strip=True)
+        ttwo = soup_est.find("div", id="ttwo")
+        if ttwo:
+            ccaa_tbl = ttwo.find("table", id="ccaa")
+            if ccaa_tbl:
+                rows = ccaa_tbl.find_all("tr")[1:]
+                if rows:
+                    cells = rows[0].find_all("td")
+                    if len(cells) >= 3:
+                        ficha["ccaa"] = cells[2].get_text(strip=True)
     except Exception:
         pass
     return ficha
@@ -1552,35 +1680,37 @@ elif selected:
     tab_ficha, tab_plan = st.tabs(["📋 Ficha", "📄 Plan de estudios"])
 
     with tab_ficha:
-        def _row(label, value):
-            if value:
-                st.markdown(f"**{label}:** {value}")
+        def _fc(label, value, highlight=False):
+            if not value:
+                return ""
+            val_class = "ficha-value ficha-value-yes" if highlight else "ficha-value"
+            return (
+                f'<div class="ficha-cell">'
+                f'<div class="ficha-label">{label}</div>'
+                f'<div class="{val_class}">{value}</div>'
+                f'</div>'
+            )
 
-        col_a, col_b = st.columns(2)
-        with col_a:
-            _row("Centro", ficha.get("centro"))
-            _row("Comunidad Autónoma", ficha.get("ccaa"))
-            nivel = ficha.get("nivel", "")
-            meces = ficha.get("meces", "")
-            if nivel and meces:
-                _row("Nivel académico", f"{nivel} · MECES {meces}")
-            elif nivel:
-                _row("Nivel académico", nivel)
-        with col_b:
-            _row("Rama de conocimiento", ficha.get("rama"))
-            _row("Campo de estudio", ficha.get("campo"))
-            habilita = ficha.get("habilita", "")
-            if habilita.upper() == "S" or habilita.lower() in ("sí", "si"):
-                st.markdown("**Habilita para profesión regulada:** ✓ Sí")
-                _row("Profesión regulada", ficha.get("profesion_regulada"))
-                _row("Norma reguladora", ficha.get("norma"))
-            else:
-                st.markdown("**Habilita para profesión regulada:** No")
+        nivel  = ficha.get("nivel", "")
+        meces  = ficha.get("meces", "")
+        habilita = ficha.get("habilita", "")
+        es_hab = habilita.upper() == "S" or habilita.lower() in ("sí", "si")
+        nivel_str = f"{nivel} · MECES {meces}" if nivel and meces else nivel
+
+        grid_html = (
+            _fc("Centro", ficha.get("centro")) +
+            _fc("Comunidad Autónoma", ficha.get("ccaa")) +
+            _fc("Nivel académico", nivel_str) +
+            _fc("Rama de conocimiento", ficha.get("rama")) +
+            _fc("Campo de estudio", ficha.get("campo")) +
+            _fc("Habilita para profesión regulada", "✓ Sí" if es_hab else "No", highlight=es_hab)
+        )
+        if es_hab and ficha.get("profesion_regulada"):
+            grid_html += _fc("Profesión regulada", ficha.get("profesion_regulada"))
+        st.markdown(f'<div class="ficha-grid">{grid_html}</div>', unsafe_allow_html=True)
 
         menciones      = ficha.get("menciones", [])
         especialidades = ficha.get("especialidades", [])
-        if menciones or especialidades:
-            st.divider()
         if menciones:
             st.markdown("**Menciones:**")
             for m in menciones:
@@ -1760,40 +1890,30 @@ elif st.session_state.get("comparing"):
 
     degrees_data = []
     for deg in comp_list:
-        key = deg["url_ruct"]
+        key = deg["url_ruct"] or f"{deg['title']}|||{deg['university']}"
         if key not in st.session_state["comparison_data"]:
-            with st.spinner(f"Cargando datos de {deg['title'][:40]}…"):
-                plan = _find_study_plan(
-                    deg["title"], deg["university"],
-                    deg.get("url_ruct", ""), deg.get("url_plan", "")
-                )
-                ficha = plan.get("ficha", {})
-                boe_url = ficha.get("boe_plan_url", "")
-                ects = _parse_ects_breakdown(boe_url)
-                if ects["total"] == 0:
-                    url_plan_ects = deg.get("url_plan", "")
-                    if not url_plan_ects:
-                        _m = re.search(r"codigoEstudio=(\d+)", deg.get("url_ruct", ""))
-                        if _m:
-                            url_plan_ects = (
-                                f"https://www.educacion.gob.es/ruct/detalles.action"
-                                f"?codigoEstudio={_m.group(1)}&actual=detallesbasicos"
-                            )
-                    ects = _parse_ects_from_ruct(url_plan_ects)
-                if ects["total"] == 0:
-                    # Last resort: use total ECTS from ficha metadata
-                    raw = ficha.get("creditos_totales") or ficha.get("num_creditos") or ""
-                    try:
-                        t = int(float(str(raw).replace(",", ".").strip()))
-                        if 30 <= t <= 600:
-                            ects["otros"] = t
-                            ects["total"] = t
-                    except (ValueError, TypeError):
-                        pass
+            with st.spinner(f"Cargando {deg['title'][:50]}…"):
+                # Use full cached plan if already loaded, else quick fetch (no subjects)
+                plan_key = f"{deg['title']}|||{deg['university']}"
+                cached_plan = st.session_state.get("study_plans", {}).get(plan_key)
+                if cached_plan and cached_plan.get("ficha", {}).get("creditos"):
+                    ficha = cached_plan["ficha"]
+                else:
+                    ficha = _fetch_ruct_ficha_quick(
+                        deg.get("url_ruct", ""), deg.get("url_plan", "")
+                    )
+                creditos = ficha.get("creditos", {})
+                ects = {
+                    "basica":      round(creditos.get("basica",      {}).get("ects", 0)),
+                    "obligatoria": round(creditos.get("obligatoria", {}).get("ects", 0)),
+                    "optativa":    round(creditos.get("optativa",    {}).get("ects", 0)),
+                    "practicas":   round(creditos.get("practicas",   {}).get("ects", 0)),
+                    "tfg_tfm":     round(creditos.get("tfg_tfm",     {}).get("ects", 0)),
+                    "otros":       0,
+                }
+                ects["total"] = sum(ects[k] for k in ects if k != "total")
                 st.session_state["comparison_data"][key] = {
-                    "deg": deg,
-                    "ficha": ficha,
-                    "ects": ects,
+                    "deg": deg, "ficha": ficha, "ects": ects,
                 }
         degrees_data.append(st.session_state["comparison_data"][key])
 
@@ -2020,8 +2140,10 @@ elif df_res is not None:
             )
             col_info, col_btn, col_comp_btn = st.columns([6, 1, 1])
             with col_info:
+                nivel_txt = str(row.get("nivel", "")).strip()
+                nivel_badge = f'<span class="nivel-pill">{nivel_txt}</span>' if nivel_txt else ""
                 st.markdown(
-                    f'<span class="result-title">{row["titulo"]}</span>'
+                    f'<span class="result-title">{row["titulo"]}{nivel_badge}</span>'
                     f'<br><span class="result-univ">{row["universidad"]}</span>',
                     unsafe_allow_html=True,
                 )
