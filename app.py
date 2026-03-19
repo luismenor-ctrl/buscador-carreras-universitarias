@@ -518,6 +518,28 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
         ficha["rama"] = _sid("estudio_descripcionRama")
         ficha["campo"] = _sid("estudio_descripcionAmbito")
 
+        # Extract ECTS credit distribution by type
+        _ects_labels = [
+            ("estudio_creditos_fbasic",  "Formación Básica",           "basica"),
+            ("estudio_creditos_obl",     "Obligatorios",                "obligatoria"),
+            ("estudio_creditos_opt",     "Optativos",                   "optativa"),
+            ("estudio_creditos_pracext", "Prácticas Externas",          "practicas"),
+            ("estudio_creditos_trbfin",  "Trabajo Fin de Grado/Máster", "tfg_tfm"),
+        ]
+        creditos = {}
+        for lbl_for, nombre, cat in _ects_labels:
+            el = soup_est.find("label", {"for": lbl_for})
+            if el:
+                txt = el.get_text(strip=True)
+                idx = txt.rfind(":")
+                if idx >= 0:
+                    try:
+                        creditos[cat] = {"nombre": nombre, "ects": float(txt[idx+1:].strip().replace(",", "."))}
+                    except ValueError:
+                        pass
+        if creditos:
+            ficha["creditos"] = creditos
+
         tthree = soup_est.find("div", id="tthree")
         if tthree:
             tbl = tthree.find("table", id="centro")
@@ -926,7 +948,7 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     # modules fetched inside _fetch_ruct_ficha session (step 4)
     modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
-    _v = "v7"
+    _v = "v8"
     if boe_url:
         plan_text = _fetch_boe_plan(boe_url)
         if plan_text:
@@ -1293,7 +1315,7 @@ elif selected:
     plan_key = f"{selected['title']}|||{selected['university']}"
 
     # Invalidate cached plan if it was built by an older code version
-    _PLAN_VERSION = "v7"
+    _PLAN_VERSION = "v8"
     cached = st.session_state["study_plans"].get(plan_key)
     if cached is not None and cached.get("_v") != _PLAN_VERSION:
         del st.session_state["study_plans"][plan_key]
@@ -1417,12 +1439,27 @@ elif selected:
             st.link_button(btn_label, src, use_container_width=False)
 
 
-        # Try structured subject table: BOE first, then cached RUCT modules data
+        # Try structured subject table: BOE first, then RUCT modules, then ECTS summary
         subjects = _parse_boe_subjects(src) if src else []
         if not subjects:
             subjects = plan.get("subjects_ruct", [])
+        _creditos_summary = False
+        if not subjects:
+            creditos = ficha.get("creditos", {})
+            if creditos:
+                subjects = [
+                    {"nombre": v["nombre"], "caracter": v["nombre"], "categoria": cat,
+                     "ects": v["ects"], "curso": "", "semestre": ""}
+                    for cat, v in creditos.items()
+                ]
+                _creditos_summary = True
 
         if subjects:
+            if _creditos_summary:
+                st.info(
+                    "El plan de estudios detallado de esta titulación aún no está publicado "
+                    "en el BOE. Se muestra la distribución de créditos registrada en el RUCT."
+                )
             # Colour map reusing comparison palette
             _SCAT_COLORS = {
                 "basica": "#1B3A6B", "obligatoria": "#0E7490",
