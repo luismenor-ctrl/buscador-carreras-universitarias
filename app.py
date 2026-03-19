@@ -858,12 +858,22 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
 
     Returns {"ficha": dict, "page_text": str, "source_url": str}
     """
+    # Construct url_plan from url_ruct if missing (same logic as _fetch_ruct_ficha)
+    if not url_plan and url_ruct:
+        m = re.search(r"codigoEstudio=(\d+)", url_ruct)
+        if m:
+            url_plan = (
+                f"https://www.educacion.gob.es/ruct/detalles.action"
+                f"?codigoEstudio={m.group(1)}&actual=detallesbasicos"
+            )
     ficha = _fetch_ruct_ficha(url_ruct, url_plan)
     boe_url = ficha.get("boe_plan_url", "")
     if boe_url:
         plan_text = _fetch_boe_plan(boe_url)
         if plan_text:
-            return {"ficha": ficha, "page_text": plan_text, "subjects_ruct": [], "source_url": boe_url}
+            # Also fetch RUCT modules as fallback if _parse_boe_subjects fails in tab_plan
+            _, modules_subjects = _fetch_ruct_modules(url_plan) if url_plan else ("", [])
+            return {"ficha": ficha, "page_text": plan_text, "subjects_ruct": modules_subjects, "source_url": boe_url}
         # BOE URL found but extraction failed — still expose the URL so user can open it
         modules_text, modules_subjects = _fetch_ruct_modules(url_plan) if url_plan else ("", [])
         return {
@@ -1232,8 +1242,13 @@ elif selected:
         st.session_state["study_plans"] = {}
     plan_key = f"{selected['title']}|||{selected['university']}"
 
-    # Invalidate cached plan if it's missing the subjects_ruct key (old format)
-    if plan_key in st.session_state["study_plans"] and "subjects_ruct" not in st.session_state["study_plans"][plan_key]:
+    # Invalidate cached plan if it's missing subjects_ruct or if subjects_ruct is empty
+    # and there's page_text (old cached result without structured data)
+    cached = st.session_state["study_plans"].get(plan_key)
+    if cached is not None and (
+        "subjects_ruct" not in cached or
+        (not cached.get("subjects_ruct") and cached.get("page_text"))
+    ):
         del st.session_state["study_plans"][plan_key]
 
     if plan_key not in st.session_state["study_plans"]:
