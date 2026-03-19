@@ -1409,12 +1409,7 @@ elif selected:
             st.link_button(btn_label, src, use_container_width=False)
 
         # DEBUG TEMPORAL
-        with st.expander("🔍 Debug"):
-            st.write("src:", src)
-            st.write("subjects_ruct count:", len(plan.get("subjects_ruct", [])))
-            st.write("page_text len:", len(plan.get("page_text", "")))
-            if plan.get("subjects_ruct"):
-                st.write("first subject:", plan["subjects_ruct"][0])
+        st.error(f"DEBUG: src='{src[:60] if src else ''}' | subjects_ruct={len(plan.get('subjects_ruct',[]))} | page_text={len(plan.get('page_text',''))}")
 
         # Try structured subject table: BOE first, then cached RUCT modules data
         subjects = _parse_boe_subjects(src) if src else []
