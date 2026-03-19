@@ -1359,6 +1359,9 @@ elif selected:
 
     st.divider()
 
+    # DEBUG TEMPORAL
+    st.error(f"DEBUG PLAN: src='{plan.get('source_url','')[:50]}' | subjects_ruct={len(plan.get('subjects_ruct',[]))} | page_text={len(plan.get('page_text',''))}")
+
     tab_ficha, tab_plan = st.tabs(["📋 Ficha", "📄 Plan de estudios"])
 
     with tab_ficha:
@@ -1408,8 +1411,6 @@ elif selected:
             btn_label = "Ver en el BOE →" if "boe.es" in src else "Ver plan de estudios →"
             st.link_button(btn_label, src, use_container_width=False)
 
-        # DEBUG TEMPORAL
-        st.error(f"DEBUG: src='{src[:60] if src else ''}' | subjects_ruct={len(plan.get('subjects_ruct',[]))} | page_text={len(plan.get('page_text',''))}")
 
         # Try structured subject table: BOE first, then cached RUCT modules data
         subjects = _parse_boe_subjects(src) if src else []
