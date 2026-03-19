@@ -737,9 +737,12 @@ def _parse_ects_breakdown(boe_url: str) -> dict:
                 totals[cat if cat else "otros"] += val
             return totals, n_rows
 
-        # Strategy: find the summary table — few rows (≤15), total in [30, 400].
-        # BOE plans always have a summary first; skip per-subject detail tables.
+        # Strategy: find the summary table — few rows (≤15), total in [60, 400].
+        # Among valid candidates, prefer the table with the highest total (most
+        # complete), breaking ties by fewest rows. This avoids picking a single-
+        # module partial table (e.g. "Obligatoria: 42") over the real 240-ECTS summary.
         best = None
+        best_total = -1
         best_rows = 9999
         for table in content.find_all("table"):
             if table.find_parent("table"):
@@ -748,9 +751,11 @@ def _parse_ects_breakdown(boe_url: str) -> dict:
             if totals is None:
                 continue
             table_total = sum(totals.values())
-            if 30 <= table_total <= 400 and n_rows <= 15 and n_rows < best_rows:
-                best = totals
-                best_rows = n_rows
+            if 60 <= table_total <= 400 and n_rows <= 15:
+                if table_total > best_total or (table_total == best_total and n_rows < best_rows):
+                    best = totals
+                    best_total = table_total
+                    best_rows = n_rows
 
         if best:
             for k in best:
