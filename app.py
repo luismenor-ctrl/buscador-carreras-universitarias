@@ -1358,7 +1358,14 @@ elif selected:
 
     # DEBUG TEMPORAL
     _dbg = plan.get('subjects_ruct', [])
-    st.warning(f"🔍 DEBUG: subjects={len(_dbg)} | page_text={len(plan.get('page_text',''))} | src={bool(plan.get('source_url'))} | v={plan.get('_v','?')}")
+    _ficha_dbg = plan.get('ficha', {})
+    st.warning(
+        f"🔍 DEBUG v={plan.get('_v','?')} | subjects={len(_dbg)} | page_text={len(plan.get('page_text',''))} | src={bool(plan.get('source_url'))}\n\n"
+        f"url_ruct={selected.get('url_ruct','—')[:80]}\n\n"
+        f"url_plan={selected.get('url_plan','—')[:80]}\n\n"
+        f"boe_url={_ficha_dbg.get('boe_plan_url','—')[:80]}\n\n"
+        f"denominacion={_ficha_dbg.get('denominacion','—')[:40]}"
+    )
 
     tab_ficha, tab_plan = st.tabs(["📋 Ficha", "📄 Plan de estudios"])
 
