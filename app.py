@@ -638,9 +638,12 @@ def _parse_boe_subjects(url: str) -> list[dict]:
                 })
 
             total = sum(s["ects"] for s in table_subjects)
-            if len(table_subjects) >= 5 and total >= 60:
-                subjects.extend(table_subjects)
-                break  # use only the first valid detail table
+            max_individual = max((s["ects"] for s in table_subjects), default=0)
+            # Reject summary tables: they have few rows with large ECTS (60-120 per category)
+            # Subject detail tables have many rows with small ECTS (3-12 each)
+            if len(table_subjects) >= 8 and total >= 90 and max_individual <= 30:
+                if total > sum(s["ects"] for s in subjects):
+                    subjects = table_subjects  # keep the largest valid detail table
 
     except Exception:
         pass
