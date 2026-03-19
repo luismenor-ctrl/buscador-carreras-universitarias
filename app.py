@@ -447,6 +447,10 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
 
         # Step 2b: fetch subject list (datosModulo) + details (datosMateria) in parallel
         try:
+            # Navigate to materiasSin context before datosModulo
+            if url_plan:
+                nav_url = re.sub(r"actual=[^&]*", "actual=menu.solicitud.planificacion.materiasSin", url_plan)
+                session.get(nav_url, timeout=15)
             r_mod = session.get(_RUCT_MODULES_URL, timeout=15)
             ficha["_dbg"] = f"mod_status={r_mod.status_code}"
             if r_mod.status_code == 200:
@@ -1042,7 +1046,7 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     # modules fetched inside _fetch_ruct_ficha session (step 4)
     modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
-    _v = "v14"
+    _v = "v15"
     if boe_url:
         plan_text, boe_subjects = _fetch_boe_plan(boe_url)
         return {
@@ -1419,7 +1423,7 @@ elif selected:
     plan_key = f"{selected['title']}|||{selected['university']}"
 
     # Invalidate cached plan if it was built by an older code version
-    _PLAN_VERSION = "v14"
+    _PLAN_VERSION = "v15"
     cached = st.session_state["study_plans"].get(plan_key)
     if cached is not None and cached.get("_v") != _PLAN_VERSION:
         del st.session_state["study_plans"][plan_key]
