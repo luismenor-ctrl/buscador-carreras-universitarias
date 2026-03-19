@@ -446,57 +446,60 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
                 elif "especialidad" in leg_text:
                     ficha["especialidades"] = items
 
-        # Step 2b: datosModulo — RIGHT AFTER detalles.action registers the degree, BEFORE estudio.action resets context
-        r_mod = session.get(_RUCT_MODULES_URL, timeout=15)
-        if r_mod.status_code == 200:
-            soup_mod = BeautifulSoup(r_mod.text, "lxml")
-            mod_table = soup_mod.find("table")
-            if mod_table:
-                mod_rows = mod_table.find_all("tr")
-                if mod_rows:
-                    hdr = [th.get_text(separator=" ", strip=True).lower()
-                           for th in mod_rows[0].find_all(["th", "td"])]
-                    nom_c = car_c = ects_c = None
-                    for idx, h in enumerate(hdr):
-                        if any(k in h for k in ["denominaci", "nombre", "materia", "módulo",
-                                                 "modulo", "subject", "module", "asignatura"]):
-                            if nom_c is None:
-                                nom_c = idx
-                        elif any(k in h for k in ["carácter", "caracter", "tipo", "character"]):
-                            car_c = idx
-                        elif any(k in h for k in ["ects", "crédito", "credito", "credit"]):
-                            if ects_c is None:
-                                ects_c = idx
-                    if nom_c is None:
-                        nom_c = 1 if len(hdr) >= 2 else 0
-                    if ects_c is None and len(hdr) >= 2:
-                        ects_c = len(hdr) - 1
-                    if car_c is None and nom_c is not None and nom_c > 0:
-                        car_c = nom_c + 1 if nom_c + 1 != ects_c else None
-                    _subjects = []
-                    for tr in mod_rows[1:]:
-                        cells = tr.find_all("td")
-                        if len(cells) < 2:
-                            continue
-                        nom = _clean_text(cells[nom_c].get_text(strip=True)) if nom_c is not None and nom_c < len(cells) else ""
-                        if not nom or any(k in nom.lower() for k in ["total", "suma"]):
-                            continue
-                        ects_val = 0.0
-                        if ects_c is not None and ects_c < len(cells):
-                            try:
-                                import re as _rem
-                                _mm = _rem.search(r"[\d,\.]+", cells[ects_c].get_text(strip=True))
-                                ects_val = float(_mm.group().replace(",", ".")) if _mm else 0.0
-                            except (ValueError, AttributeError):
-                                pass
-                        car = _clean_text(cells[car_c].get_text(strip=True)) if car_c is not None and car_c < len(cells) else ""
-                        cat = _categorize_ects(car) or "otros"
-                        _subjects.append({
-                            "nombre": nom, "caracter": car, "categoria": cat,
-                            "ects": ects_val, "curso": "", "semestre": "",
-                        })
-                    if _subjects:
-                        ficha["modules"] = _subjects
+        # Step 2b: datosModulo (isolated so any error doesn't break step 3)
+        try:
+            r_mod = session.get(_RUCT_MODULES_URL, timeout=15)
+            if r_mod.status_code == 200:
+                soup_mod = BeautifulSoup(r_mod.text, "lxml")
+                mod_table = soup_mod.find("table")
+                if mod_table:
+                    mod_rows = mod_table.find_all("tr")
+                    if mod_rows:
+                        hdr = [th.get_text(separator=" ", strip=True).lower()
+                               for th in mod_rows[0].find_all(["th", "td"])]
+                        nom_c = car_c = ects_c = None
+                        for idx, h in enumerate(hdr):
+                            if any(k in h for k in ["denominaci", "nombre", "materia", "módulo",
+                                                     "modulo", "subject", "module", "asignatura"]):
+                                if nom_c is None:
+                                    nom_c = idx
+                            elif any(k in h for k in ["carácter", "caracter", "tipo", "character"]):
+                                car_c = idx
+                            elif any(k in h for k in ["ects", "crédito", "credito", "credit"]):
+                                if ects_c is None:
+                                    ects_c = idx
+                        if nom_c is None:
+                            nom_c = 1 if len(hdr) >= 2 else 0
+                        if ects_c is None and len(hdr) >= 2:
+                            ects_c = len(hdr) - 1
+                        if car_c is None and nom_c is not None and nom_c > 0:
+                            car_c = nom_c + 1 if nom_c + 1 != ects_c else None
+                        _subjects = []
+                        for tr in mod_rows[1:]:
+                            cells = tr.find_all("td")
+                            if len(cells) < 2:
+                                continue
+                            nom = _clean_text(cells[nom_c].get_text(strip=True)) if nom_c is not None and nom_c < len(cells) else ""
+                            if not nom or any(k in nom.lower() for k in ["total", "suma"]):
+                                continue
+                            ects_val = 0.0
+                            if ects_c is not None and ects_c < len(cells):
+                                try:
+                                    import re as _rem
+                                    _mm = _rem.search(r"[\d,\.]+", cells[ects_c].get_text(strip=True))
+                                    ects_val = float(_mm.group().replace(",", ".")) if _mm else 0.0
+                                except (ValueError, AttributeError):
+                                    pass
+                            car = _clean_text(cells[car_c].get_text(strip=True)) if car_c is not None and car_c < len(cells) else ""
+                            cat = _categorize_ects(car) or "otros"
+                            _subjects.append({
+                                "nombre": nom, "caracter": car, "categoria": cat,
+                                "ects": ects_val, "curso": "", "semestre": "",
+                            })
+                        if _subjects:
+                            ficha["modules"] = _subjects
+        except Exception:
+            pass
 
         # Step 3: estudio.action — nivel, MECES, rama, campo, centro, CCAA, BOE URL
         r_est = session.get(url_ruct, timeout=15)
@@ -923,7 +926,7 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     # modules fetched inside _fetch_ruct_ficha session (step 4)
     modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
-    _v = "v6"
+    _v = "v7"
     if boe_url:
         plan_text = _fetch_boe_plan(boe_url)
         if plan_text:
@@ -1290,7 +1293,7 @@ elif selected:
     plan_key = f"{selected['title']}|||{selected['university']}"
 
     # Invalidate cached plan if it was built by an older code version
-    _PLAN_VERSION = "v6"
+    _PLAN_VERSION = "v7"
     cached = st.session_state["study_plans"].get(plan_key)
     if cached is not None and cached.get("_v") != _PLAN_VERSION:
         del st.session_state["study_plans"][plan_key]
