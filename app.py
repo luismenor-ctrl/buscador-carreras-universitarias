@@ -1158,10 +1158,6 @@ elif selected:
         '</script>',
         unsafe_allow_html=True,
     )
-    if st.button("← Volver a los resultados"):
-        st.session_state["selected_degree"] = None
-        st.rerun()
-
     if "study_plans" not in st.session_state:
         st.session_state["study_plans"] = {}
     plan_key = f"{selected['title']}|||{selected['university']}"
@@ -1181,35 +1177,39 @@ elif selected:
     denom = ficha.get("denominacion") or selected["title"]
     univ  = ficha.get("universidad") or selected["university"]
 
-    # Header
-    st.markdown(
-        f'<div style="margin-bottom:0.25rem;">'
-        f'<span style="font-size:1.1rem;font-weight:700;color:#111827;">{denom}</span><br>'
-        f'<span style="font-size:0.8rem;color:#6B7280;">{univ}</span>'
-        f'</div>',
-        unsafe_allow_html=True,
+    # Single compact action bar: [← Volver | título+univ | Ver RUCT | + Comparador]
+    comp_list_det = st.session_state.get("comparison_list", [])
+    deg_key_det   = selected.get("url_ruct") or f"{selected['title']}|||{selected['university']}"
+    in_comp_det   = any(
+        (c.get("url_ruct") or f"{c['title']}|||{c['university']}") == deg_key_det
+        for c in comp_list_det
     )
 
-    col_ruct, col_comp = st.columns([2, 3])
+    col_back, col_title, col_ruct, col_comp = st.columns([1.4, 5, 1.6, 1.8])
+    with col_back:
+        if st.button("← Volver", key="_back_det", use_container_width=True, type="primary"):
+            st.session_state["selected_degree"] = None
+            st.rerun()
+    with col_title:
+        st.markdown(
+            f'<p style="margin:0.3rem 0 0;font-size:0.92rem;font-weight:700;'
+            f'color:#111827;line-height:1.3;">{denom}</p>'
+            f'<p style="margin:0;font-size:0.75rem;color:#6B7280;">{univ}</p>',
+            unsafe_allow_html=True,
+        )
     with col_ruct:
         if selected.get("url_ruct"):
-            st.link_button("Ver ficha en el RUCT →", selected["url_ruct"], use_container_width=True)
+            st.link_button("Ver en RUCT →", selected["url_ruct"], use_container_width=True)
     with col_comp:
-        comp_list_det = st.session_state.get("comparison_list", [])
-        deg_key_det   = selected.get("url_ruct") or f"{selected['title']}|||{selected['university']}"
-        in_comp_det   = any(
-            (c.get("url_ruct") or f"{c['title']}|||{c['university']}") == deg_key_det
-            for c in comp_list_det
-        )
         if in_comp_det:
-            if st.button("✓ En el comparador", key="det_comp", use_container_width=True, type="primary"):
+            if st.button("✓ Seleccionada", key="det_comp", use_container_width=True, type="primary"):
                 st.session_state["comparison_list"] = [
                     c for c in comp_list_det
                     if (c.get("url_ruct") or f"{c['title']}|||{c['university']}") != deg_key_det
                 ]
                 st.rerun()
         elif len(comp_list_det) < 4:
-            if st.button("+ Añadir al comparador", key="det_comp", use_container_width=True):
+            if st.button("+ Comparar", key="det_comp", use_container_width=True):
                 st.session_state["comparison_list"] = comp_list_det + [{
                     "title": selected["title"],
                     "university": selected["university"],
