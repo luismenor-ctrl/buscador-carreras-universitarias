@@ -403,10 +403,27 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
     try:
         session = requests.Session()
         session.headers.update(_WEB_HEADERS)
-        session.get(_RUCT_INIT_URL, timeout=15)
+        r_init = session.get(_RUCT_INIT_URL, timeout=15)
+
+        # Extract jsessionid from init response (RUCT uses URL-based sessions, not cookies)
+        _jsid = ""
+        _jsid_match = re.search(r";jsessionid=([A-Za-z0-9_.]+)", r_init.url)
+        if not _jsid_match:
+            _jsid_match = re.search(r";jsessionid=([A-Za-z0-9_.]+)", r_init.text)
+        if _jsid_match:
+            _jsid = f";jsessionid={_jsid_match.group(1)}"
+
+        def _with_jsid(u):
+            """Inject jsessionid into URL path before the query string."""
+            if not _jsid or _jsid in u:
+                return u
+            if "?" in u:
+                base, qs = u.split("?", 1)
+                return f"{base}{_jsid}?{qs}"
+            return f"{u}{_jsid}"
 
         # Step 2: detalles.action — datos basicos
-        r_det = session.get(url_plan, timeout=15)
+        r_det = session.get(_with_jsid(url_plan), timeout=15)
         if r_det.status_code < 400:
             soup_det = BeautifulSoup(r_det.text, "lxml")
 
@@ -447,7 +464,7 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
                     ficha["especialidades"] = items
 
         # Step 2b: datosModulo — RIGHT AFTER detalles.action registers the degree, BEFORE estudio.action resets context
-        r_mod = session.get(_RUCT_MODULES_URL, timeout=15)
+        r_mod = session.get(_with_jsid(_RUCT_MODULES_URL), timeout=15)
         if r_mod.status_code == 200:
             soup_mod = BeautifulSoup(r_mod.text, "lxml")
             mod_table = soup_mod.find("table")
@@ -499,7 +516,7 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
                         ficha["modules"] = _subjects
 
         # Step 3: estudio.action — nivel, MECES, rama, campo, centro, CCAA, BOE URL
-        r_est = session.get(url_ruct, timeout=15)
+        r_est = session.get(_with_jsid(url_ruct), timeout=15)
         r_est.raise_for_status()
         soup_est = BeautifulSoup(r_est.text, "lxml")
 
