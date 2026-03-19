@@ -589,25 +589,102 @@ def _html_table_to_md(table) -> str:
     return "\n".join(rows)
 
 
-def _fetch_boe_plan(url: str) -> str:
+def _parse_boe_subjects_from_content(content) -> list[dict]:
     """
-    Fetch a BOE txt.php page and extract the study plan content from div#textoxslt.
-    Tables are converted to Markdown. For text-only documents, extracts plain text.
+    Extract per-subject rows from an already-fetched BOE #textoxslt BeautifulSoup element.
+    Returns list of dicts: {nombre, caracter, categoria, ects, curso, semestre}
     """
+    subjects = []
+    for table in content.find_all("table"):
+        if table.find_parent("table"):
+            continue
+        rows = table.find_all("tr")
+        if len(rows) < 4:
+            continue
+
+        header_cells = [th.get_text(strip=True).lower()
+                        for th in rows[0].find_all(["th", "td"])]
+        nom_col = car_col = ects_col = cur_col = sem_col = None
+        for idx, h in enumerate(header_cells):
+            if any(k in h for k in ["denominaci", "nombre", "materia", "asignatura", "módulo", "modulo"]):
+                if nom_col is None:
+                    nom_col = idx
+            elif any(k in h for k in ["carácter", "caracter", "tipo", "naturaleza"]):
+                car_col = idx
+            elif any(k in h for k in ["ects", "crédito", "credito"]):
+                if ects_col is None:
+                    ects_col = idx
+            elif "curso" in h:
+                cur_col = idx
+            elif any(k in h for k in ["semestre", "período", "periodo", "cuatr"]):
+                sem_col = idx
+
+        if nom_col is None or ects_col is None:
+            continue
+
+        table_subjects = []
+        for tr in rows[1:]:
+            cells = tr.find_all(["td", "th"])
+            if not cells:
+                continue
+            max_needed = max(c for c in [nom_col, car_col, ects_col, cur_col, sem_col] if c is not None)
+            if len(cells) <= max_needed:
+                continue
+            nom = _clean_text(cells[nom_col].get_text(strip=True))
+            if not nom:
+                continue
+            if any(k in nom.lower() for k in ["total", "suma", "créditos"]):
+                continue
+            try:
+                ects_raw = cells[ects_col].get_text(strip=True).replace(",", ".").strip()
+                ects_val = float(ects_raw)
+                if ects_val <= 0 or ects_val > 60:
+                    continue
+            except (ValueError, IndexError):
+                continue
+            car = _clean_text(cells[car_col].get_text(strip=True)) if car_col is not None and car_col < len(cells) else ""
+            cur = _clean_text(cells[cur_col].get_text(strip=True)) if cur_col is not None and cur_col < len(cells) else ""
+            sem = _clean_text(cells[sem_col].get_text(strip=True)) if sem_col is not None and sem_col < len(cells) else ""
+            cat = _categorize_ects(car) or "otros"
+            table_subjects.append({
+                "nombre": nom, "caracter": car, "categoria": cat,
+                "ects": ects_val, "curso": cur, "semestre": sem,
+            })
+
+        total = sum(s["ects"] for s in table_subjects)
+        max_individual = max((s["ects"] for s in table_subjects), default=0)
+        # Reject summary tables: few rows with large ECTS per category
+        if len(table_subjects) >= 8 and total >= 90 and max_individual <= 30:
+            if total > sum(s["ects"] for s in subjects):
+                subjects = table_subjects
+    return subjects
+
+
+def _fetch_boe_plan(url: str) -> tuple[str, list]:
+    """
+    Fetch a BOE txt.php page and return (plan_text, subjects_list).
+    plan_text: markdown representation of tables + paragraphs (capped at 14000 chars)
+    subjects_list: structured per-subject list from _parse_boe_subjects_from_content
+    """
+    if not url:
+        return "", []
     try:
         r = requests.get(url, headers=_WEB_HEADERS, timeout=15)
         if r.status_code >= 400:
-            return ""
+            return "", []
         soup = BeautifulSoup(r.text, "lxml")
         content = soup.find(id="textoxslt")
         if not content:
-            return ""
+            return "", []
+
+        # Parse subjects before decomposing links
+        subjects = _parse_boe_subjects_from_content(content)
+
         for el in content(["script", "style", "a"]):
             el.decompose()
 
         parts = []
         past_first_table = False
-
         for el in content.find_all(["table", "p", "h2", "h3", "h4"]):
             if el.find_parent("table"):
                 continue
@@ -621,7 +698,6 @@ def _fetch_boe_plan(url: str) -> str:
                 if text:
                     parts.append(text)
 
-        # If no tables found, fall back to full text (skip first paragraph = legal preamble)
         if not parts:
             paragraphs = [
                 el.get_text(strip=True)
@@ -629,102 +705,11 @@ def _fetch_boe_plan(url: str) -> str:
                 if not el.find_parent("table") and el.get_text(strip=True)
             ]
             if len(paragraphs) > 2:
-                parts = paragraphs[2:]   # skip opening legal text
+                parts = paragraphs[2:]
 
-        return "\n\n".join(parts)[:14000]
+        return "\n\n".join(parts)[:14000], subjects
     except Exception:
-        return ""
-
-
-def _parse_boe_subjects(url: str) -> list[dict]:
-    """
-    Parse the BOE plan HTML to extract a per-subject breakdown.
-    Returns list of dicts: {nombre, caracter, categoria, ects, curso, semestre}
-    Only returns data from the 'detail' table (many rows, total >= 60 ECTS).
-    """
-    subjects = []
-    if not url:
-        return subjects
-    try:
-        r = requests.get(url, headers=_WEB_HEADERS, timeout=15)
-        if r.status_code >= 400:
-            return subjects
-        soup = BeautifulSoup(r.text, "lxml")
-        content = soup.find(id="textoxslt")
-        if not content:
-            return subjects
-
-        for table in content.find_all("table"):
-            if table.find_parent("table"):
-                continue
-            rows = table.find_all("tr")
-            if len(rows) < 4:
-                continue
-
-            header_cells = [th.get_text(strip=True).lower()
-                            for th in rows[0].find_all(["th", "td"])]
-            nom_col = car_col = ects_col = cur_col = sem_col = None
-            for idx, h in enumerate(header_cells):
-                if any(k in h for k in ["denominaci", "nombre", "materia", "asignatura", "módulo", "modulo"]):
-                    if nom_col is None:
-                        nom_col = idx
-                elif any(k in h for k in ["carácter", "caracter", "tipo", "naturaleza"]):
-                    car_col = idx
-                elif any(k in h for k in ["ects", "crédito", "credito"]):
-                    if ects_col is None:
-                        ects_col = idx
-                elif "curso" in h:
-                    cur_col = idx
-                elif any(k in h for k in ["semestre", "período", "periodo", "cuatr"]):
-                    sem_col = idx
-
-            if nom_col is None or ects_col is None:
-                continue
-
-            table_subjects = []
-            for tr in rows[1:]:
-                cells = tr.find_all(["td", "th"])
-                if not cells:
-                    continue
-                max_needed = max(c for c in [nom_col, car_col, ects_col, cur_col, sem_col] if c is not None)
-                if len(cells) <= max_needed:
-                    continue
-                nom = _clean_text(cells[nom_col].get_text(strip=True))
-                if not nom:
-                    continue
-                if any(k in nom.lower() for k in ["total", "suma", "créditos"]):
-                    continue
-                try:
-                    ects_raw = cells[ects_col].get_text(strip=True).replace(",", ".").strip()
-                    ects_val = float(ects_raw)
-                    if ects_val <= 0 or ects_val > 60:
-                        continue
-                except (ValueError, IndexError):
-                    continue
-                car = _clean_text(cells[car_col].get_text(strip=True)) if car_col is not None and car_col < len(cells) else ""
-                cur = _clean_text(cells[cur_col].get_text(strip=True)) if cur_col is not None and cur_col < len(cells) else ""
-                sem = _clean_text(cells[sem_col].get_text(strip=True)) if sem_col is not None and sem_col < len(cells) else ""
-                cat = _categorize_ects(car) or "otros"
-                table_subjects.append({
-                    "nombre": nom,
-                    "caracter": car,
-                    "categoria": cat,
-                    "ects": ects_val,
-                    "curso": cur,
-                    "semestre": sem,
-                })
-
-            total = sum(s["ects"] for s in table_subjects)
-            max_individual = max((s["ects"] for s in table_subjects), default=0)
-            # Reject summary tables: they have few rows with large ECTS (60-120 per category)
-            # Subject detail tables have many rows with small ECTS (3-12 each)
-            if len(table_subjects) >= 8 and total >= 90 and max_individual <= 30:
-                if total > sum(s["ects"] for s in subjects):
-                    subjects = table_subjects  # keep the largest valid detail table
-
-    except Exception:
-        pass
-    return subjects
+        return "", []
 
 
 def _fetch_ruct_modules(url_plan: str) -> tuple[str, list[dict]]:
@@ -947,16 +932,26 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     # modules fetched inside _fetch_ruct_ficha session (step 4)
     modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
-    _v = "v8"
+    _v = "v9"
     if boe_url:
-        plan_text = _fetch_boe_plan(boe_url)
-        if plan_text:
-            return {"ficha": ficha, "page_text": plan_text, "subjects_ruct": modules_subjects, "source_url": boe_url, "_v": _v}
-        modules_text = "**Módulos y materias**\n\n" + "\n".join(f"- {s['nombre']}" for s in modules_subjects) if modules_subjects else ""
-        return {"ficha": ficha, "page_text": modules_text, "subjects_ruct": modules_subjects, "source_url": boe_url, "_v": _v}
+        plan_text, boe_subjects = _fetch_boe_plan(boe_url)
+        return {
+            "ficha": ficha,
+            "page_text": plan_text,
+            "subjects_boe": boe_subjects,
+            "subjects_ruct": modules_subjects,
+            "source_url": boe_url,
+            "_v": _v,
+        }
 
-    modules_text = "**Módulos y materias**\n\n" + "\n".join(f"- {s['nombre']}" for s in modules_subjects) if modules_subjects else ""
-    return {"ficha": ficha, "page_text": modules_text, "subjects_ruct": modules_subjects, "source_url": "", "_v": _v}
+    return {
+        "ficha": ficha,
+        "page_text": "",
+        "subjects_boe": [],
+        "subjects_ruct": modules_subjects,
+        "source_url": "",
+        "_v": _v,
+    }
 
 
 # ─── ECTS breakdown parser ────────────────────────────────────────────────────
@@ -1314,7 +1309,7 @@ elif selected:
     plan_key = f"{selected['title']}|||{selected['university']}"
 
     # Invalidate cached plan if it was built by an older code version
-    _PLAN_VERSION = "v8"
+    _PLAN_VERSION = "v9"
     cached = st.session_state["study_plans"].get(plan_key)
     if cached is not None and cached.get("_v") != _PLAN_VERSION:
         del st.session_state["study_plans"][plan_key]
@@ -1429,8 +1424,8 @@ elif selected:
             st.link_button(btn_label, src, use_container_width=False)
 
 
-        # Try structured subject table: BOE first, then RUCT modules, then ECTS summary
-        subjects = _parse_boe_subjects(src) if src else []
+        # Try structured subject table: BOE subjects (pre-parsed), then RUCT modules, then ECTS summary
+        subjects = plan.get("subjects_boe", [])
         if not subjects:
             subjects = plan.get("subjects_ruct", [])
         _creditos_summary = False
@@ -1445,7 +1440,7 @@ elif selected:
                 _creditos_summary = True
 
         if subjects:
-            if _creditos_summary:
+            if _creditos_summary and not src:
                 st.info(
                     "El plan de estudios detallado de esta titulación aún no está publicado "
                     "en el BOE. Se muestra la distribución de créditos registrada en el RUCT."
