@@ -494,6 +494,56 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
                         if a and "boe.es" in a["href"] and ".pdf" in a["href"]:
                             ficha["boe_plan_url"] = _boe_pdf_to_html(a["href"])
                             break
+        # Step 4: datosModulo — fetch module list in the same session (degree already registered)
+        r_mod = session.get(_RUCT_MODULES_URL, timeout=15)
+        if r_mod.status_code == 200:
+            soup_mod = BeautifulSoup(r_mod.text, "lxml")
+            mod_table = soup_mod.find("table")
+            if mod_table:
+                mod_rows = mod_table.find_all("tr")
+                if mod_rows:
+                    hdr = [th.get_text(separator=" ", strip=True).lower()
+                           for th in mod_rows[0].find_all(["th", "td"])]
+                    nom_c = car_c = ects_c = None
+                    for idx, h in enumerate(hdr):
+                        if any(k in h for k in ["denominaci", "nombre", "materia", "módulo",
+                                                 "modulo", "subject", "module", "asignatura"]):
+                            if nom_c is None:
+                                nom_c = idx
+                        elif any(k in h for k in ["carácter", "caracter", "tipo", "character"]):
+                            car_c = idx
+                        elif any(k in h for k in ["ects", "crédito", "credito", "credit"]):
+                            if ects_c is None:
+                                ects_c = idx
+                    if nom_c is None:
+                        nom_c = 1 if len(hdr) >= 2 else 0
+                    if ects_c is None and len(hdr) >= 2:
+                        ects_c = len(hdr) - 1
+                    if car_c is None and nom_c is not None and nom_c > 0:
+                        car_c = nom_c + 1 if nom_c + 1 != ects_c else None
+                    subjects = []
+                    for tr in mod_rows[1:]:
+                        cells = tr.find_all("td")
+                        if len(cells) < 2:
+                            continue
+                        nom = _clean_text(cells[nom_c].get_text(strip=True)) if nom_c is not None and nom_c < len(cells) else ""
+                        if not nom or any(k in nom.lower() for k in ["total", "suma"]):
+                            continue
+                        ects_val = 0.0
+                        if ects_c is not None and ects_c < len(cells):
+                            try:
+                                import re as _rem
+                                _mm = _rem.search(r"[\d,\.]+", cells[ects_c].get_text(strip=True))
+                                ects_val = float(_mm.group().replace(",", ".")) if _mm else 0.0
+                            except (ValueError, AttributeError):
+                                pass
+                        car = _clean_text(cells[car_c].get_text(strip=True)) if car_c is not None and car_c < len(cells) else ""
+                        cat = _categorize_ects(car) or "otros"
+                        subjects.append({
+                            "nombre": nom, "caracter": car, "categoria": cat,
+                            "ects": ects_val, "curso": "", "semestre": "",
+                        })
+                    ficha["modules"] = subjects
     except Exception:
         pass
     return ficha
@@ -867,24 +917,24 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
                 f"?codigoEstudio={m.group(1)}&actual=detallesbasicos"
             )
     ficha = _fetch_ruct_ficha(url_ruct, url_plan)
+    # modules fetched inside _fetch_ruct_ficha session (step 4)
+    modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
     if boe_url:
         plan_text = _fetch_boe_plan(boe_url)
         if plan_text:
-            # Also fetch RUCT modules as fallback if _parse_boe_subjects fails in tab_plan
-            _, modules_subjects = _fetch_ruct_modules(url_plan) if url_plan else ("", [])
             return {"ficha": ficha, "page_text": plan_text, "subjects_ruct": modules_subjects, "source_url": boe_url}
-        # BOE URL found but extraction failed — still expose the URL so user can open it
-        modules_text, modules_subjects = _fetch_ruct_modules(url_plan) if url_plan else ("", [])
+        # BOE URL found but extraction failed
+        modules_text = "**Módulos y materias**\n\n" + "\n".join(f"- {s['nombre']}" for s in modules_subjects) if modules_subjects else ""
         return {
             "ficha": ficha,
             "page_text": modules_text,
             "subjects_ruct": modules_subjects,
-            "source_url": boe_url,          # always show BOE button
+            "source_url": boe_url,
         }
 
-    # No BOE URL — try RUCT modules page as sole source
-    modules_text, modules_subjects = _fetch_ruct_modules(url_plan) if url_plan else ("", [])
+    # No BOE URL — use RUCT modules as sole source
+    modules_text = "**Módulos y materias**\n\n" + "\n".join(f"- {s['nombre']}" for s in modules_subjects) if modules_subjects else ""
     return {"ficha": ficha, "page_text": modules_text, "subjects_ruct": modules_subjects, "source_url": ""}
 
 
