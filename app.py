@@ -650,7 +650,7 @@ def _parse_boe_subjects(url: str) -> list[dict]:
     return subjects
 
 
-def _fetch_ruct_modules(url_plan: str) -> str:
+def _fetch_ruct_modules(url_plan: str) -> tuple[str, list[dict]]:
     """
     Fallback: fetch the 'Módulos o Materias' static page from RUCT.
 
@@ -659,10 +659,11 @@ def _fetch_ruct_modules(url_plan: str) -> str:
       2. GET url_plan (lupa link)     — register degree in server session
       3. GET datosModulo              — returns static HTML with module list
 
-    Returns a markdown-formatted list of modules, or "" on failure.
+    Returns (markdown_text, subjects_list). subjects_list entries:
+      {nombre, caracter, categoria, ects, curso, semestre}
     """
     if not url_plan:
-        return ""
+        return "", []
     try:
         session = requests.Session()
         session.headers.update(_WEB_HEADERS)
@@ -673,19 +674,77 @@ def _fetch_ruct_modules(url_plan: str) -> str:
         soup = BeautifulSoup(r.text, "lxml")
         table = soup.find("table")
         if not table:
-            return ""
+            return "", []
+        rows = table.find_all("tr")
+        if not rows:
+            return "", []
+
+        # Detect columns from header
+        header_cells = [th.get_text(separator=" ", strip=True).lower()
+                        for th in rows[0].find_all(["th", "td"])]
+        nom_col = car_col = ects_col = cur_col = sem_col = None
+        for idx, h in enumerate(header_cells):
+            if any(k in h for k in ["denominaci", "nombre", "materia", "módulo", "modulo",
+                                     "subject", "module", "asignatura"]):
+                if nom_col is None:
+                    nom_col = idx
+            elif any(k in h for k in ["carácter", "caracter", "tipo", "naturaleza",
+                                       "character", "type"]):
+                car_col = idx
+            elif any(k in h for k in ["ects", "crédito", "credito", "credit"]):
+                if ects_col is None:
+                    ects_col = idx
+            elif "curso" in h or "year" in h:
+                cur_col = idx
+            elif any(k in h for k in ["semestre", "período", "periodo", "cuatr",
+                                       "semester", "term"]):
+                sem_col = idx
+        # Fallback column positions (typical RUCT table: idx | nombre | carácter | ECTS)
+        if nom_col is None:
+            nom_col = 1 if len(header_cells) >= 2 else 0
+        if ects_col is None and len(header_cells) >= 2:
+            ects_col = len(header_cells) - 1
+        if car_col is None and nom_col is not None and nom_col > 0:
+            car_col = nom_col + 1 if nom_col + 1 != ects_col else None
+
         items = []
-        for tr in table.find_all("tr")[1:]:  # Skip header row
+        subjects = []
+        for tr in rows[1:]:
             cells = tr.find_all("td")
-            if len(cells) >= 2:
-                name = cells[1].get_text(strip=True)
-                if name:
-                    items.append(f"- {name}")
+            if len(cells) < 2:
+                continue
+            nom = _clean_text(cells[nom_col].get_text(strip=True)) if nom_col is not None and nom_col < len(cells) else ""
+            if not nom:
+                continue
+            if any(k in nom.lower() for k in ["total", "suma"]):
+                continue
+            items.append(f"- {nom}")
+            ects_val = 0.0
+            if ects_col is not None and ects_col < len(cells):
+                try:
+                    import re as _re4
+                    m4 = _re4.search(r"[\d,\.]+", cells[ects_col].get_text(strip=True))
+                    ects_val = float(m4.group().replace(",", ".")) if m4 else 0.0
+                except (ValueError, AttributeError):
+                    ects_val = 0.0
+            car = _clean_text(cells[car_col].get_text(strip=True)) if car_col is not None and car_col < len(cells) else ""
+            cur = _clean_text(cells[cur_col].get_text(strip=True)) if cur_col is not None and cur_col < len(cells) else ""
+            sem = _clean_text(cells[sem_col].get_text(strip=True)) if sem_col is not None and sem_col < len(cells) else ""
+            cat = _categorize_ects(car) or "otros"
+            subjects.append({
+                "nombre": nom,
+                "caracter": car,
+                "categoria": cat,
+                "ects": ects_val,
+                "curso": cur,
+                "semestre": sem,
+            })
         if not items:
-            return ""
-        return "**Módulos y materias**\n\n" + "\n".join(items)
+            return "", []
+        text = "**Módulos y materias**\n\n" + "\n".join(items)
+        return text, subjects
     except Exception:
-        return ""
+        return "", []
 
 
 def _parse_ruct_subjects(url_plan: str) -> list[dict]:
@@ -804,18 +863,19 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     if boe_url:
         plan_text = _fetch_boe_plan(boe_url)
         if plan_text:
-            return {"ficha": ficha, "page_text": plan_text, "source_url": boe_url}
+            return {"ficha": ficha, "page_text": plan_text, "subjects_ruct": [], "source_url": boe_url}
         # BOE URL found but extraction failed — still expose the URL so user can open it
-        modules_text = _fetch_ruct_modules(url_plan) if url_plan else ""
+        modules_text, modules_subjects = _fetch_ruct_modules(url_plan) if url_plan else ("", [])
         return {
             "ficha": ficha,
             "page_text": modules_text,
+            "subjects_ruct": modules_subjects,
             "source_url": boe_url,          # always show BOE button
         }
 
     # No BOE URL — try RUCT modules page as sole source
-    modules_text = _fetch_ruct_modules(url_plan) if url_plan else ""
-    return {"ficha": ficha, "page_text": modules_text, "source_url": ""}
+    modules_text, modules_subjects = _fetch_ruct_modules(url_plan) if url_plan else ("", [])
+    return {"ficha": ficha, "page_text": modules_text, "subjects_ruct": modules_subjects, "source_url": ""}
 
 
 # ─── ECTS breakdown parser ────────────────────────────────────────────────────
@@ -1279,19 +1339,10 @@ elif selected:
             btn_label = "Ver en el BOE →" if "boe.es" in src else "Ver plan de estudios →"
             st.link_button(btn_label, src, use_container_width=False)
 
-        # Try structured subject table: BOE first, then RUCT modules page
+        # Try structured subject table: BOE first, then cached RUCT modules data
         subjects = _parse_boe_subjects(src) if src else []
         if not subjects:
-            url_plan_subj = selected.get("url_plan", "")
-            if not url_plan_subj:
-                import re as _re3
-                _m3 = __import__("re").search(r"codigoEstudio=(\d+)", selected.get("url_ruct", ""))
-                if _m3:
-                    url_plan_subj = (
-                        f"https://www.educacion.gob.es/ruct/detalles.action"
-                        f"?codigoEstudio={_m3.group(1)}&actual=detallesbasicos"
-                    )
-            subjects = _parse_ruct_subjects(url_plan_subj) if url_plan_subj else []
+            subjects = plan.get("subjects_ruct", [])
 
         if subjects:
             # Colour map reusing comparison palette
