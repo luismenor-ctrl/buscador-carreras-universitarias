@@ -448,9 +448,11 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
         # Step 2b: fetch subject list (datosModulo) + details (datosMateria) in parallel
         try:
             r_mod = session.get(_RUCT_MODULES_URL, timeout=15)
+            ficha["_dbg"] = f"mod_status={r_mod.status_code}"
             if r_mod.status_code == 200:
                 soup_mod = BeautifulSoup(r_mod.text, "lxml")
                 mod_table = soup_mod.find("table")
+                ficha["_dbg"] += f" table={mod_table is not None} txt={r_mod.text[:80]!r}"
                 if mod_table:
                     subject_ids = []
                     for tr in mod_table.find_all("tr")[1:]:
@@ -505,10 +507,11 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
                         except Exception:
                             continue
 
+                    ficha["_dbg"] += f" ids={len(subject_ids)}"
                     if _subjects:
                         ficha["modules"] = _subjects
-        except Exception:
-            pass
+        except Exception as _e:
+            ficha["_dbg"] = f"EXC:{_e}"
 
         # Step 3: estudio.action — nivel, MECES, rama, campo, centro, CCAA, BOE URL
         r_est = session.get(url_ruct, timeout=15)
@@ -1039,7 +1042,7 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     # modules fetched inside _fetch_ruct_ficha session (step 4)
     modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
-    _v = "v13"
+    _v = "v14"
     if boe_url:
         plan_text, boe_subjects = _fetch_boe_plan(boe_url)
         return {
@@ -1416,7 +1419,7 @@ elif selected:
     plan_key = f"{selected['title']}|||{selected['university']}"
 
     # Invalidate cached plan if it was built by an older code version
-    _PLAN_VERSION = "v13"
+    _PLAN_VERSION = "v14"
     cached = st.session_state["study_plans"].get(plan_key)
     if cached is not None and cached.get("_v") != _PLAN_VERSION:
         del st.session_state["study_plans"][plan_key]
@@ -1480,7 +1483,7 @@ elif selected:
     st.divider()
 
     # DEBUG
-    st.warning(f"v={plan.get('_v')} | sboe={len(plan.get('subjects_boe',[]))} | sruct={len(plan.get('subjects_ruct',[]))} | txt={len(plan.get('page_text',''))} | src={plan.get('source_url','')[:60]}")
+    st.warning(f"v={plan.get('_v')} | sboe={len(plan.get('subjects_boe',[]))} | sruct={len(plan.get('subjects_ruct',[]))} | txt={len(plan.get('page_text',''))} | src={plan.get('source_url','')[:60]} | dbg={plan.get('ficha',{}).get('_dbg','—')[:120]}")
 
     tab_ficha, tab_plan = st.tabs(["📋 Ficha", "📄 Plan de estudios"])
 
