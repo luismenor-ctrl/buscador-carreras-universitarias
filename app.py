@@ -1069,7 +1069,8 @@ elif st.session_state.get("comparing"):
 
     col_back, col_title = st.columns([2, 5])
     with col_back:
-        if st.button("← Volver a resultados", key="_back_comp_top", use_container_width=True):
+        if st.button("← Volver a resultados", key="_back_comp_top",
+                     use_container_width=True, type="primary"):
             st.session_state["comparing"] = False
             st.rerun()
     with col_title:
@@ -1255,7 +1256,8 @@ elif st.session_state.get("comparing"):
         )
 
     st.divider()
-    if st.button("← Volver a resultados", key="_back_comp_bottom", use_container_width=False):
+    if st.button("← Volver a resultados", key="_back_comp_bottom",
+                 use_container_width=False, type="primary"):
         st.session_state["comparing"] = False
         st.rerun()
 
