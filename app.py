@@ -2141,7 +2141,8 @@ elif df_res is not None:
             col_info, col_btn, col_comp_btn = st.columns([6, 1, 1])
             with col_info:
                 nivel_txt = str(row.get("nivel", "")).strip()
-                nivel_badge = f'<span class="nivel-pill">{nivel_txt}</span>' if nivel_txt else ""
+                nivel_short = re.split(r"[-–(]", nivel_txt)[0].strip()
+                nivel_badge = f'<span class="nivel-pill">{nivel_short}</span>' if nivel_short else ""
                 st.markdown(
                     f'<span class="result-title">{row["titulo"]}{nivel_badge}</span>'
                     f'<br><span class="result-univ">{row["universidad"]}</span>',
