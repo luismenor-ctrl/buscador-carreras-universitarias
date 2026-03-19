@@ -445,7 +445,7 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
                 elif "especialidad" in leg_text:
                     ficha["especialidades"] = items
 
-        # Step 2b: fetch subject list (datosModulo) + details (datosMateria) in parallel
+        # Step 2b: fetch subject list (datosModulo) + details (datosMateria)
         try:
             # Navigate to materiasSin context before datosModulo
             if url_plan:
@@ -456,62 +456,95 @@ def _fetch_ruct_ficha(url_ruct: str, url_plan: str) -> dict:
             if r_mod.status_code == 200:
                 soup_mod = BeautifulSoup(r_mod.text, "lxml")
                 mod_table = soup_mod.find("table")
-                ficha["_dbg"] += f" table={mod_table is not None} txt={r_mod.text[:80]!r}"
+                ficha["_dbg"] += f" table={mod_table is not None}"
                 if mod_table:
-                    subject_ids = []
+                    top_ids = []
                     for tr in mod_table.find_all("tr")[1:]:
                         cells = tr.find_all("td")
                         if cells:
                             sid = cells[0].get_text(strip=True)
                             if sid.isdigit():
-                                subject_ids.append(sid)
+                                top_ids.append(sid)
+
+                    ficha["_dbg"] += f" top={len(top_ids)}"
+
+                    # Build list of (mod_id, subj_id) pairs.
+                    # datosModulo?codModulo=0 may return module IDs instead of subject IDs
+                    # depending on server-side session context. Try to expand each module.
+                    subject_pairs = []  # list of (codModulo, codMateria)
+                    for mod_id in top_ids:
+                        sub_url = (
+                            "https://www.educacion.gob.es/ruct/solicitud/datosModulo"
+                            f"?actual=menu.solicitud.planificacion.materiasSin&codModulo={mod_id}"
+                        )
+                        r_sub = session.get(sub_url, timeout=15)
+                        if r_sub.status_code == 200:
+                            soup_sub = BeautifulSoup(r_sub.text, "lxml")
+                            sub_table = soup_sub.find("table")
+                            if sub_table:
+                                for tr in sub_table.find_all("tr")[1:]:
+                                    cells = tr.find_all("td")
+                                    if cells:
+                                        sid2 = cells[0].get_text(strip=True)
+                                        if sid2.isdigit():
+                                            subject_pairs.append((mod_id, sid2))
+
+                    # Fallback: if no sub-subjects found, top-level IDs are the subjects
+                    if not subject_pairs:
+                        subject_pairs = [("0", sid) for sid in top_ids]
+
+                    ficha["_dbg"] += f" subj={len(subject_pairs)}"
+
+                    def _fetch_subject(mod_id, sid):
+                        url = (
+                            "https://www.educacion.gob.es/ruct/solicitud/"
+                            f"datosMateria!consulta.action?codModulo={mod_id}&codMateria={sid}"
+                            "&actual=menu.solicitud.planificacion.materias.datos"
+                        )
+                        rr = session.get(url, timeout=10)
+                        if rr.status_code != 200:
+                            return None
+                        sp = BeautifulSoup(rr.text, "lxml")
+                        el = sp.find("input", {"name": "descripcion"})
+                        nom = _clean_text(el.get("value", "")) if el else ""
+                        if not nom:
+                            return None
+                        el = sp.find("input", {"name": "datosBasicos.caracter.codigo"})
+                        car = _clean_text(el.get("value", "")) if el else ""
+                        el = sp.find("input", {"name": "datosBasicos.ectsMateria"})
+                        ects_val = 0.0
+                        if el:
+                            try:
+                                ects_val = float(el.get("value", "0").replace(",", "."))
+                            except ValueError:
+                                pass
+                        sem_num = 0
+                        periodos = [i.get("value", "") for i in sp.find_all("input", {"name": "periodo"})]
+                        ects_pp  = [i.get("value", "") for i in sp.find_all("input", {"name": "ects"})]
+                        for p_str, e_str in zip(periodos, ects_pp):
+                            try:
+                                if float(e_str.replace(",", ".")) > 0:
+                                    sem_num = int(p_str)
+                                    break
+                            except (ValueError, TypeError):
+                                pass
+                        curso    = f"{(sem_num + 1) // 2}º" if sem_num > 0 else ""
+                        semestre = f"S{sem_num}" if sem_num > 0 else ""
+                        cat = _categorize_ects(car) or "otros"
+                        return {
+                            "nombre": nom, "caracter": car, "categoria": cat,
+                            "ects": ects_val, "curso": curso, "semestre": semestre,
+                        }
 
                     _subjects = []
-                    for sid in subject_ids:
+                    for mod_id, sid in subject_pairs:
                         try:
-                            url = (
-                                "https://www.educacion.gob.es/ruct/solicitud/"
-                                f"datosMateria!consulta.action?codModulo=0&codMateria={sid}"
-                                "&actual=menu.solicitud.planificacion.materias.datos"
-                            )
-                            rr = session.get(url, timeout=10)
-                            if rr.status_code != 200:
-                                continue
-                            sp = BeautifulSoup(rr.text, "lxml")
-                            el = sp.find("input", {"name": "descripcion"})
-                            nom = _clean_text(el.get("value", "")) if el else ""
-                            if not nom:
-                                continue
-                            el = sp.find("input", {"name": "datosBasicos.caracter.codigo"})
-                            car = _clean_text(el.get("value", "")) if el else ""
-                            el = sp.find("input", {"name": "datosBasicos.ectsMateria"})
-                            ects_val = 0.0
-                            if el:
-                                try:
-                                    ects_val = float(el.get("value", "0").replace(",", "."))
-                                except ValueError:
-                                    pass
-                            sem_num = 0
-                            periodos = [i.get("value", "") for i in sp.find_all("input", {"name": "periodo"})]
-                            ects_pp  = [i.get("value", "") for i in sp.find_all("input", {"name": "ects"})]
-                            for p_str, e_str in zip(periodos, ects_pp):
-                                try:
-                                    if float(e_str.replace(",", ".")) > 0:
-                                        sem_num = int(p_str)
-                                        break
-                                except (ValueError, TypeError):
-                                    pass
-                            curso    = f"{(sem_num + 1) // 2}º" if sem_num > 0 else ""
-                            semestre = f"S{sem_num}" if sem_num > 0 else ""
-                            cat = _categorize_ects(car) or "otros"
-                            _subjects.append({
-                                "nombre": nom, "caracter": car, "categoria": cat,
-                                "ects": ects_val, "curso": curso, "semestre": semestre,
-                            })
+                            result = _fetch_subject(mod_id, sid)
+                            if result:
+                                _subjects.append(result)
                         except Exception:
                             continue
 
-                    ficha["_dbg"] += f" ids={len(subject_ids)}"
                     if _subjects:
                         ficha["modules"] = _subjects
         except Exception as _e:
@@ -1046,7 +1079,7 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     # modules fetched inside _fetch_ruct_ficha session (step 4)
     modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
-    _v = "v15"
+    _v = "v16"
     if boe_url:
         plan_text, boe_subjects = _fetch_boe_plan(boe_url)
         return {
@@ -1423,7 +1456,7 @@ elif selected:
     plan_key = f"{selected['title']}|||{selected['university']}"
 
     # Invalidate cached plan if it was built by an older code version
-    _PLAN_VERSION = "v15"
+    _PLAN_VERSION = "v16"
     cached = st.session_state["study_plans"].get(plan_key)
     if cached is not None and cached.get("_v") != _PLAN_VERSION:
         del st.session_state["study_plans"][plan_key]
