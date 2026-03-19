@@ -726,17 +726,20 @@ def _parse_ruct_subjects(url_plan: str) -> list[dict]:
                         for th in rows[0].find_all(["th", "td"])]
         nom_col = car_col = ects_col = cur_col = sem_col = None
         for idx, h in enumerate(header_cells):
-            if any(k in h for k in ["denominaci", "nombre", "materia", "módulo", "modulo"]):
+            if any(k in h for k in ["denominaci", "nombre", "materia", "módulo", "modulo",
+                                     "subject", "module", "denomination", "asignatura"]):
                 if nom_col is None:
                     nom_col = idx
-            elif any(k in h for k in ["carácter", "caracter", "tipo", "naturaleza"]):
+            elif any(k in h for k in ["carácter", "caracter", "tipo", "naturaleza",
+                                       "character", "nature", "type"]):
                 car_col = idx
-            elif any(k in h for k in ["ects", "crédito", "credito"]):
+            elif any(k in h for k in ["ects", "crédito", "credito", "credit"]):
                 if ects_col is None:
                     ects_col = idx
-            elif "curso" in h:
+            elif "curso" in h or "year" in h:
                 cur_col = idx
-            elif any(k in h for k in ["semestre", "período", "periodo", "cuatr"]):
+            elif any(k in h for k in ["semestre", "período", "periodo", "cuatr",
+                                       "semester", "term", "period"]):
                 sem_col = idx
 
         # Fallback column guesses
@@ -763,9 +766,13 @@ def _parse_ruct_subjects(url_plan: str) -> list[dict]:
             if any(k in nom.lower() for k in ["total", "suma"]):
                 continue
             try:
-                ects_raw = cells[ects_col].get_text(strip=True).replace(",", ".").strip()
+                raw = cells[ects_col].get_text(strip=True)
+                # Strip non-numeric suffix (e.g. "30 ECTS" → "30")
+                import re as _re3
+                m3 = _re3.search(r"[\d,\.]+", raw)
+                ects_raw = m3.group().replace(",", ".") if m3 else ""
                 ects_val = float(ects_raw)
-                if ects_val <= 0 or ects_val > 60:
+                if ects_val <= 0 or ects_val > 400:
                     continue
             except (ValueError, IndexError):
                 continue
@@ -1322,7 +1329,7 @@ elif selected:
 
             for curso_key in sorted(cursos.keys(), key=_curso_key):
                 asigs = sorted(cursos[curso_key], key=_sem_key)
-                label = f"📚 {curso_key}" if curso_key != "Sin curso" else "📚 Asignaturas"
+                label = f"📚 {curso_key}" if curso_key != "Sin curso" else "📚 Módulos y materias"
                 total_ects = sum(a["ects"] for a in asigs)
                 st.markdown(
                     f'<div style="margin:1rem 0 0.4rem;font-size:0.88rem;font-weight:700;'
