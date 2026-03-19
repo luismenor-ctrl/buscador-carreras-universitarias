@@ -1311,8 +1311,14 @@ elif selected:
             th_style = "padding:0.35rem 0.6rem;text-align:left;font-size:0.75rem;font-weight:600;background:#F3F4F6;border-bottom:2px solid #E5E7EB;white-space:nowrap;"
             td_style = "padding:0.3rem 0.6rem;font-size:0.78rem;border-bottom:1px solid #F3F4F6;vertical-align:top;"
 
+            def _sem_key(s):
+                import re as _re
+                sem = s.get("semestre", "")
+                m = _re.search(r"\d+", sem)
+                return (int(m.group()) if m else 9, s.get("nombre", ""))
+
             for curso_key in sorted(cursos.keys(), key=_curso_key):
-                asigs = cursos[curso_key]
+                asigs = sorted(cursos[curso_key], key=_sem_key)
                 label = f"📚 {curso_key}" if curso_key != "Sin curso" else "📚 Asignaturas"
                 total_ects = sum(a["ects"] for a in asigs)
                 st.markdown(
