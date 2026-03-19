@@ -1360,7 +1360,7 @@ elif selected:
     st.divider()
 
     # DEBUG TEMPORAL
-    st.error(f"DEBUG PLAN: src='{plan.get('source_url','')[:50]}' | subjects_ruct={len(plan.get('subjects_ruct',[]))} | page_text={len(plan.get('page_text',''))}")
+    st.toast(f"subjects_ruct={len(plan.get('subjects_ruct',[]))} page_text={len(plan.get('page_text',''))} src={bool(plan.get('source_url'))}", icon="🔍")
 
     tab_ficha, tab_plan = st.tabs(["📋 Ficha", "📄 Plan de estudios"])
 
