@@ -1408,6 +1408,14 @@ elif selected:
             btn_label = "Ver en el BOE →" if "boe.es" in src else "Ver plan de estudios →"
             st.link_button(btn_label, src, use_container_width=False)
 
+        # DEBUG TEMPORAL
+        with st.expander("🔍 Debug"):
+            st.write("src:", src)
+            st.write("subjects_ruct count:", len(plan.get("subjects_ruct", [])))
+            st.write("page_text len:", len(plan.get("page_text", "")))
+            if plan.get("subjects_ruct"):
+                st.write("first subject:", plan["subjects_ruct"][0])
+
         # Try structured subject table: BOE first, then cached RUCT modules data
         subjects = _parse_boe_subjects(src) if src else []
         if not subjects:
