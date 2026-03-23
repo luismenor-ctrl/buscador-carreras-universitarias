@@ -859,12 +859,16 @@ def _parse_boe_subjects_from_content(content) -> list[dict]:
                 "ects": ects_val, "curso": cur, "semestre": sem,
             })
 
-        total = sum(s["ects"] for s in table_subjects)
         max_individual = max((s["ects"] for s in table_subjects), default=0)
-        # Reject summary tables: few rows with large ECTS per category
-        if len(table_subjects) >= 8 and total >= 90 and max_individual <= 30:
-            if total > sum(s["ects"] for s in subjects):
-                subjects = table_subjects
+        # Accept any subject table: ≥3 rows and no summary-sized ECTS per row.
+        # Accumulate across tables (BOEs often split by year/semester).
+        # Deduplicate by subject name to avoid double-counting combined+per-year tables.
+        if len(table_subjects) >= 3 and max_individual <= 30:
+            existing = {s["nombre"] for s in subjects}
+            for s in table_subjects:
+                if s["nombre"] not in existing:
+                    subjects.append(s)
+                    existing.add(s["nombre"])
     return subjects
 
 
@@ -916,11 +920,13 @@ def _parse_boe_subjects_from_xml(texto) -> list[dict]:
             cat = _categorize_ects(car) or "otros"
             table_subjects.append({"nombre": nom, "caracter": car, "categoria": cat,
                                     "ects": ects_val, "curso": cur, "semestre": sem})
-        total = sum(s["ects"] for s in table_subjects)
         max_individual = max((s["ects"] for s in table_subjects), default=0)
-        if len(table_subjects) >= 8 and total >= 90 and max_individual <= 30:
-            if total > sum(s["ects"] for s in subjects):
-                subjects = table_subjects
+        if len(table_subjects) >= 3 and max_individual <= 30:
+            existing = {s["nombre"] for s in subjects}
+            for s in table_subjects:
+                if s["nombre"] not in existing:
+                    subjects.append(s)
+                    existing.add(s["nombre"])
     return subjects
 
 
@@ -1237,7 +1243,7 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     # modules fetched inside _fetch_ruct_ficha session (step 4)
     modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
-    _v = "v21"
+    _v = "v22"
     if boe_url:
         plan_text, boe_subjects = _fetch_boe_plan(boe_url)
         return {
@@ -1614,7 +1620,7 @@ elif selected:
     plan_key = f"{selected['title']}|||{selected['university']}"
 
     # Invalidate cached plan if it was built by an older code version
-    _PLAN_VERSION = "v21"
+    _PLAN_VERSION = "v22"
     cached = st.session_state["study_plans"].get(plan_key)
     if cached is not None and cached.get("_v") != _PLAN_VERSION:
         del st.session_state["study_plans"][plan_key]
