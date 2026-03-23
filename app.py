@@ -840,6 +840,30 @@ def _adj_col(col, n_header, n_cells):
     return adjusted if 0 <= adjusted < n_cells else None
 
 
+_ORDINAL_TO_CURSO = {
+    "primer": "1º", "primero": "1º", "first": "1º", "1": "1º",
+    "segundo": "2º", "second": "2º", "2": "2º",
+    "tercer": "3º", "tercero": "3º", "third": "3º", "3": "3º",
+    "cuarto": "4º", "fourth": "4º", "4": "4º",
+    "quinto": "5º", "fifth": "5º", "5": "5º",
+    "sexto": "6º", "sixth": "6º", "6": "6º",
+}
+
+
+def _section_to_curso(text: str) -> str:
+    """Convert a section header like 'PRIMER CURSO' or '2º CURSO' to a short label."""
+    t = text.lower().strip().rstrip(".")
+    # Try digit: '1º curso', '2º curso', '1 curso'...
+    m = re.search(r"(\d+)", t)
+    if m:
+        return _ORDINAL_TO_CURSO.get(m.group(1), m.group(1) + "º")
+    # Try ordinal word
+    for word, label in _ORDINAL_TO_CURSO.items():
+        if word in t:
+            return label
+    return ""
+
+
 def _parse_boe_subjects_from_content(content) -> list[dict]:
     """
     Extract per-subject rows from an already-fetched BOE #textoxslt BeautifulSoup element.
@@ -870,6 +894,12 @@ def _parse_boe_subjects_from_content(content) -> list[dict]:
             continue
 
         n_header = len(hcells)
+        # If the section header row contains a course year, use it as fallback curso
+        section_curso = ""
+        if header_row_idx == 1:
+            sec_text = " ".join(rows[0].get_text(strip=True).split())
+            section_curso = _section_to_curso(sec_text)
+
         table_subjects = []
         for tr in rows[header_row_idx + 1:]:
             cells = tr.find_all(["td", "th"])
@@ -894,6 +924,8 @@ def _parse_boe_subjects_from_content(content) -> list[dict]:
                 continue
             car = _clean_text(cells[cc].get_text(strip=True)) if cc is not None else ""
             cur = _clean_text(cells[urc].get_text(strip=True)) if urc is not None else ""
+            if not cur and section_curso:
+                cur = section_curso
             sem = _clean_text(cells[sc].get_text(strip=True)) if sc is not None else ""
             cat = _categorize_ects(car) or "otros"
             table_subjects.append({
@@ -938,6 +970,12 @@ def _parse_boe_subjects_from_xml(texto) -> list[dict]:
             continue
 
         n_header = len(hcells_text)
+        # If the section header row contains a course year, use it as fallback curso
+        section_curso = ""
+        if header_row_idx == 1:
+            sec_text = " ".join("".join(rows[0].itertext()).split())
+            section_curso = _section_to_curso(sec_text)
+
         table_subjects = []
         for tr in rows[header_row_idx + 1:]:
             cells = tr.findall(".//td")
@@ -962,6 +1000,8 @@ def _parse_boe_subjects_from_xml(texto) -> list[dict]:
                 continue
             car = _clean_text(" ".join(cells[cc].itertext()).strip()) if cc is not None else ""
             cur = _clean_text(" ".join(cells[urc].itertext()).strip()) if urc is not None else ""
+            if not cur and section_curso:
+                cur = section_curso
             sem = _clean_text(" ".join(cells[sc].itertext()).strip()) if sc is not None else ""
             cat = _categorize_ects(car) or "otros"
             table_subjects.append({"nombre": nom, "caracter": car, "categoria": cat,
@@ -1289,7 +1329,7 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     # modules fetched inside _fetch_ruct_ficha session (step 4)
     modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
-    _v = "v23"
+    _v = "v24"
     if boe_url:
         plan_text, boe_subjects = _fetch_boe_plan(boe_url)
         return {
@@ -1666,7 +1706,7 @@ elif selected:
     plan_key = f"{selected['title']}|||{selected['university']}"
 
     # Invalidate cached plan if it was built by an older code version
-    _PLAN_VERSION = "v23"
+    _PLAN_VERSION = "v24"
     cached = st.session_state["study_plans"].get(plan_key)
     if cached is not None and cached.get("_v") != _PLAN_VERSION:
         del st.session_state["study_plans"][plan_key]
