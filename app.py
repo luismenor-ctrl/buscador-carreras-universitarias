@@ -813,19 +813,20 @@ def _detect_header_cols(cells_text: list[str]):
             if specific_nom_col is None:
                 specific_nom_col = idx
         elif any(k in hl for k in ["nombre", "módulo", "modulo", "materia"]):
-            if nom_col is None:
+            # Exclude "tipo de materia", "carácter de materia", etc. — those are type columns
+            if nom_col is None and not any(excl in hl for excl in ["tipo", "carácter", "caracter"]):
                 nom_col = idx
         elif any(k in hl for k in ["carácter", "caracter", "tipo", "naturaleza"]):
             car_col = idx
         elif any(k in hl for k in ["ects", "crédito", "credito"]):
             if ects_col is None:
                 ects_col = idx
-        elif "curso" in hl:
+        elif "curso" in hl and "recursos" not in hl:
             cur_col = idx
         elif any(k in hl for k in ["semestre", "período", "periodo", "cuatr"]):
             sem_col = idx
 
-    # Prefer specific match ('asignatura') over generic ('módulo'/'materia')
+    # Prefer specific match ('asignatura'/'denominaci') over generic ('módulo'/'materia')
     if specific_nom_col is not None:
         nom_col = specific_nom_col
 
@@ -867,22 +868,42 @@ def _section_to_curso(text: str) -> str:
 def _parse_boe_subjects_from_content(content) -> list[dict]:
     """
     Extract per-subject rows from an already-fetched BOE #textoxslt BeautifulSoup element.
-    Returns list of dicts: {nombre, caracter, categoria, ects, curso, semestre}
-    Handles BOEs that use a section-header row before column headers (e.g. 'PRIMER CURSO')
-    and tables where rowspan causes data rows to have fewer cells than the header row.
+
+    Iterates ALL direct children in DOM order so that <p>/<h*> elements immediately before
+    a <table> (e.g. "Curso 1.º") are captured as the course label for that table.
+    Also handles section-header rows inside tables and rowspan-shortened data rows.
     """
+    from bs4 import Tag
     subjects = []
-    for table in content.find_all("table"):
-        if table.find_parent("table"):
+    seen_names: set = set()
+    current_curso = ""
+
+    for element in content.children:
+        if not isinstance(element, Tag):
             continue
-        rows = table.find_all("tr")
+
+        # ── Paragraph / heading: check for course indicator ────────────────────
+        if element.name in ("p", "h2", "h3", "h4", "h5"):
+            txt = element.get_text(" ", strip=True)
+            curso = _section_to_curso(txt)
+            if curso:
+                current_curso = curso
+            continue
+
+        if element.name != "table":
+            continue
+
+        if element.find_parent("table"):
+            continue
+
+        # ── Table ──────────────────────────────────────────────────────────────
+        rows = element.find_all("tr")
         if len(rows) < 3:
             continue
 
-        # Try row 0 first as header; if column detection fails try row 1
-        # (some BOEs put a section title like "PRIMER CURSO" in row 0)
         nom_col = car_col = ects_col = cur_col = sem_col = None
         header_row_idx = 0
+        hcells = []
         for try_idx in range(min(2, len(rows))):
             hcells = [th.get_text(strip=True) for th in rows[try_idx].find_all(["th", "td"])]
             nom_col, car_col, ects_col, cur_col, sem_col = _detect_header_cols(hcells)
@@ -894,11 +915,14 @@ def _parse_boe_subjects_from_content(content) -> list[dict]:
             continue
 
         n_header = len(hcells)
-        # If the section header row contains a course year, use it as fallback curso
-        section_curso = ""
+
+        # Course label priority: in-table section row > preceding <p>
+        section_curso = current_curso
         if header_row_idx == 1:
             sec_text = " ".join(rows[0].get_text(strip=True).split())
-            section_curso = _section_to_curso(sec_text)
+            from_section = _section_to_curso(sec_text)
+            if from_section:
+                section_curso = from_section
 
         table_subjects = []
         for tr in rows[header_row_idx + 1:]:
@@ -906,11 +930,11 @@ def _parse_boe_subjects_from_content(content) -> list[dict]:
             if not cells:
                 continue
             n = len(cells)
-            nc = _adj_col(nom_col, n_header, n)
-            ec = _adj_col(ects_col, n_header, n)
-            cc = _adj_col(car_col, n_header, n)
-            urc = _adj_col(cur_col, n_header, n)
-            sc = _adj_col(sem_col, n_header, n)
+            nc  = _adj_col(nom_col,  n_header, n)
+            ec  = _adj_col(ects_col, n_header, n)
+            cc  = _adj_col(car_col,  n_header, n)
+            urc = _adj_col(cur_col,  n_header, n)
+            sc  = _adj_col(sem_col,  n_header, n)
             if nc is None or ec is None:
                 continue
             nom = _clean_text(cells[nc].get_text(strip=True))
@@ -918,49 +942,68 @@ def _parse_boe_subjects_from_content(content) -> list[dict]:
                 continue
             try:
                 ects_val = float(cells[ec].get_text(strip=True).replace(",", ".").strip())
-                if ects_val <= 0 or ects_val > 60:
+                if ects_val <= 0 or ects_val > 30:
                     continue
             except (ValueError, IndexError):
                 continue
-            car = _clean_text(cells[cc].get_text(strip=True)) if cc is not None else ""
+            car = _clean_text(cells[cc].get_text(strip=True))  if cc  is not None else ""
             cur = _clean_text(cells[urc].get_text(strip=True)) if urc is not None else ""
-            if not cur and section_curso:
+            if not cur:
                 cur = section_curso
-            sem = _clean_text(cells[sc].get_text(strip=True)) if sc is not None else ""
+            sem = _clean_text(cells[sc].get_text(strip=True))  if sc  is not None else ""
             cat = _categorize_ects(car) or "otros"
             table_subjects.append({
                 "nombre": nom, "caracter": car, "categoria": cat,
                 "ects": ects_val, "curso": cur, "semestre": sem,
             })
 
-        max_individual = max((s["ects"] for s in table_subjects), default=0)
-        if len(table_subjects) >= 3 and max_individual <= 30:
-            existing = {s["nombre"] for s in subjects}
+        if len(table_subjects) >= 3:
             for s in table_subjects:
-                if s["nombre"] not in existing:
+                if s["nombre"] not in seen_names:
                     subjects.append(s)
-                    existing.add(s["nombre"])
+                    seen_names.add(s["nombre"])
     return subjects
 
 
 def _parse_boe_subjects_from_xml(texto) -> list[dict]:
     """
     Extract per-subject rows from the <texto> element of a BOE xml.php response.
-    Same logic as _parse_boe_subjects_from_content but for ElementTree nodes.
-    Handles section-header rows before column headers and rowspan-shortened data rows.
+
+    Iterates ALL direct children in DOM order so that <p> elements immediately before
+    a <table> (e.g. "Curso 1.º") are captured as the course label for that table.
+    Also handles section-header rows inside tables (e.g. 'PRIMER CURSO' as row 0)
+    and rowspan-shortened data rows.
     """
     subjects = []
-    for table in texto.findall(".//table"):
-        rows = table.findall(".//tr")
+    seen_names: set = set()
+    current_curso = ""          # course label from a preceding <p>/<h*> element
+
+    for element in texto:       # iterate direct children IN ORDER
+        tag = element.tag
+
+        # ── Paragraph / heading: check for course indicator ────────────────────
+        if tag in ("p", "h2", "h3", "h4", "h5"):
+            txt = " ".join(element.itertext()).strip()
+            curso = _section_to_curso(txt)
+            if curso:
+                current_curso = curso
+            continue
+
+        if tag != "table":
+            continue
+
+        # ── Table ──────────────────────────────────────────────────────────────
+        rows = element.findall(".//tr")
         if len(rows) < 3:
             continue
 
-        # Try row 0 then row 1 as header (some BOEs put "PRIMER CURSO" in row 0)
+        # Try row 0, then row 1 as column-header row
         nom_col = car_col = ects_col = cur_col = sem_col = None
         header_row_idx = 0
         hcells_text = []
         for try_idx in range(min(2, len(rows))):
-            hcells_text = [" ".join(td.itertext()).strip() for td in rows[try_idx].findall(".//td")]
+            hcells_text = [" ".join(td.itertext()).strip()
+                           for td in rows[try_idx].findall(".//td")]
             nom_col, car_col, ects_col, cur_col, sem_col = _detect_header_cols(hcells_text)
             if nom_col is not None and ects_col is not None:
                 header_row_idx = try_idx
@@ -970,11 +1013,14 @@ def _parse_boe_subjects_from_xml(texto) -> list[dict]:
             continue
 
         n_header = len(hcells_text)
-        # If the section header row contains a course year, use it as fallback curso
-        section_curso = ""
+
+        # Course label priority: in-table section row > preceding <p>
+        section_curso = current_curso
         if header_row_idx == 1:
             sec_text = " ".join("".join(rows[0].itertext()).split())
-            section_curso = _section_to_curso(sec_text)
+            from_section = _section_to_curso(sec_text)
+            if from_section:
+                section_curso = from_section
 
         table_subjects = []
         for tr in rows[header_row_idx + 1:]:
@@ -982,11 +1028,11 @@ def _parse_boe_subjects_from_xml(texto) -> list[dict]:
             if not cells:
                 continue
             n = len(cells)
-            nc = _adj_col(nom_col, n_header, n)
-            ec = _adj_col(ects_col, n_header, n)
-            cc = _adj_col(car_col, n_header, n)
-            urc = _adj_col(cur_col, n_header, n)
-            sc = _adj_col(sem_col, n_header, n)
+            nc  = _adj_col(nom_col,  n_header, n)
+            ec  = _adj_col(ects_col, n_header, n)
+            cc  = _adj_col(car_col,  n_header, n)
+            urc = _adj_col(cur_col,  n_header, n)
+            sc  = _adj_col(sem_col,  n_header, n)
             if nc is None or ec is None:
                 continue
             nom = _clean_text(" ".join(cells[nc].itertext()).strip())
@@ -994,25 +1040,25 @@ def _parse_boe_subjects_from_xml(texto) -> list[dict]:
                 continue
             try:
                 ects_val = float(" ".join(cells[ec].itertext()).strip().replace(",", "."))
-                if ects_val <= 0 or ects_val > 60:
+                if ects_val <= 0 or ects_val > 30:
                     continue
             except (ValueError, IndexError):
                 continue
-            car = _clean_text(" ".join(cells[cc].itertext()).strip()) if cc is not None else ""
+            car = _clean_text(" ".join(cells[cc].itertext()).strip())  if cc  is not None else ""
             cur = _clean_text(" ".join(cells[urc].itertext()).strip()) if urc is not None else ""
-            if not cur and section_curso:
+            if not cur:
                 cur = section_curso
-            sem = _clean_text(" ".join(cells[sc].itertext()).strip()) if sc is not None else ""
+            sem = _clean_text(" ".join(cells[sc].itertext()).strip())  if sc  is not None else ""
             cat = _categorize_ects(car) or "otros"
             table_subjects.append({"nombre": nom, "caracter": car, "categoria": cat,
                                     "ects": ects_val, "curso": cur, "semestre": sem})
-        max_individual = max((s["ects"] for s in table_subjects), default=0)
-        if len(table_subjects) >= 3 and max_individual <= 30:
-            existing = {s["nombre"] for s in subjects}
+
+        if len(table_subjects) >= 3:
             for s in table_subjects:
-                if s["nombre"] not in existing:
+                if s["nombre"] not in seen_names:
                     subjects.append(s)
-                    existing.add(s["nombre"])
+                    seen_names.add(s["nombre"])
+
     return subjects
 
 
@@ -1329,7 +1375,7 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     # modules fetched inside _fetch_ruct_ficha session (step 4)
     modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
-    _v = "v25"
+    _v = "v26"
     if boe_url:
         plan_text, boe_subjects = _fetch_boe_plan(boe_url)
         return {
@@ -1706,7 +1752,7 @@ elif selected:
     plan_key = f"{selected['title']}|||{selected['university']}"
 
     # Invalidate cached plan if it was built by an older code version
-    _PLAN_VERSION = "v25"
+    _PLAN_VERSION = "v26"
     cached = st.session_state["study_plans"].get(plan_key)
     if cached is not None and cached.get("_v") != _PLAN_VERSION:
         del st.session_state["study_plans"][plan_key]
