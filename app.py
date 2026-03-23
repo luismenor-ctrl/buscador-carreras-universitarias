@@ -930,6 +930,12 @@ def _parse_boe_subjects_from_content(content) -> list[dict]:
             if not cells:
                 continue
             n = len(cells)
+            # Single-cell rows inside the body are section labels (year/course indicator)
+            if n == 1:
+                label = _section_to_curso(cells[0].get_text(" ", strip=True))
+                if label:
+                    section_curso = label
+                continue
             nc  = _adj_col(nom_col,  n_header, n)
             ec  = _adj_col(ects_col, n_header, n)
             cc  = _adj_col(car_col,  n_header, n)
@@ -997,13 +1003,16 @@ def _parse_boe_subjects_from_xml(texto) -> list[dict]:
         if len(rows) < 3:
             continue
 
-        # Try row 0, then row 1 as column-header row
+        # Try row 0, then row 1 as column-header row.
+        # Some BOEs use <th> for headers instead of <td>.
         nom_col = car_col = ects_col = cur_col = sem_col = None
         header_row_idx = 0
         hcells_text = []
         for try_idx in range(min(2, len(rows))):
-            hcells_text = [" ".join(td.itertext()).strip()
-                           for td in rows[try_idx].findall(".//td")]
+            ths = rows[try_idx].findall(".//th")
+            hcells_text = ([" ".join(th.itertext()).strip() for th in ths]
+                           if ths else
+                           [" ".join(td.itertext()).strip() for td in rows[try_idx].findall(".//td")])
             nom_col, car_col, ects_col, cur_col, sem_col = _detect_header_cols(hcells_text)
             if nom_col is not None and ects_col is not None:
                 header_row_idx = try_idx
@@ -1028,6 +1037,12 @@ def _parse_boe_subjects_from_xml(texto) -> list[dict]:
             if not cells:
                 continue
             n = len(cells)
+            # Single-cell rows inside the body are section labels (year/course indicator)
+            if n == 1:
+                label = _section_to_curso(" ".join(cells[0].itertext()).strip())
+                if label:
+                    section_curso = label
+                continue
             nc  = _adj_col(nom_col,  n_header, n)
             ec  = _adj_col(ects_col, n_header, n)
             cc  = _adj_col(car_col,  n_header, n)
@@ -1375,7 +1390,7 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     # modules fetched inside _fetch_ruct_ficha session (step 4)
     modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
-    _v = "v26"
+    _v = "v27"
     if boe_url:
         plan_text, boe_subjects = _fetch_boe_plan(boe_url)
         return {
@@ -1752,7 +1767,7 @@ elif selected:
     plan_key = f"{selected['title']}|||{selected['university']}"
 
     # Invalidate cached plan if it was built by an older code version
-    _PLAN_VERSION = "v26"
+    _PLAN_VERSION = "v27"
     cached = st.session_state["study_plans"].get(plan_key)
     if cached is not None and cached.get("_v") != _PLAN_VERSION:
         del st.session_state["study_plans"][plan_key]

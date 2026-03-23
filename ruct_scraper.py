@@ -86,7 +86,7 @@ _CP1252_FIX = str.maketrans({
 
 def _clean_text(text: str) -> str:
     """Fix Windows-1252 encoding artifacts and remove invisible Unicode characters."""
-    return _INVISIBLE_CHARS.sub("", text.translate(_CP1252_FIX)).strip()
+    return _INVISIBLE_CHARS.sub("", text.translate(_CP1252_FIX)).replace("\xa0", " ").strip()
 
 
 def _strip_accents(text: str) -> str:
