@@ -854,19 +854,36 @@ _ORDINAL_TO_CURSO = {
 def _section_to_curso(text: str) -> str:
     """Convert a section header like 'PRIMER CURSO' or '2º CURSO' to a short label.
 
-    Only interprets bare digits as a course number when the text explicitly contains
-    a course keyword ('curso', 'año', 'year').  This avoids false positives from
-    article numbers ('Artículo 12'), ECTS counts, BOE reference numbers, etc.
+    When the text contains a course keyword ('curso', 'año', 'year'), only the part
+    of the text *before* that keyword is used to identify the year ordinal.
+    This prevents "(primer semestre)" from being confused with "primer curso" in
+    patterns like "Segundo curso (primer semestre)".
     """
     t = text.lower().strip().rstrip(".")
-    # Digit-based: only when 'curso' / 'año' / 'year' is present in the text
-    if any(k in t for k in ["curso", "año", "year"]):
-        m = re.search(r"(\d+)", t)
-        if m:
-            n = int(m.group(1))
-            if 1 <= n <= 6:
-                return f"{n}º"
-    # Ordinal-word matching (whole-word to avoid substring hits like "1" inside "12")
+
+    # Prefer the portion before the course keyword to avoid parenthesized semester labels
+    prefix = t
+    for kw in ("curso", "año", "year"):
+        idx = t.find(kw)
+        if idx >= 0:
+            prefix = t[:idx]
+            break
+
+    # Try digits first (only in prefix, to avoid article/decree numbers elsewhere in text)
+    m = re.search(r"(\d+)", prefix)
+    if m:
+        n = int(m.group(1))
+        if 1 <= n <= 6:
+            return f"{n}º"
+
+    # Try ordinal words in prefix (whole-word match)
+    for word, label in _ORDINAL_TO_CURSO.items():
+        if re.search(r"\b" + re.escape(word) + r"\b", prefix):
+            return label
+
+    # Fallback: ordinal words in full text (for single-cell table rows like "Primero", "Segundo")
+    if prefix != t:
+        return ""  # Had a course keyword but found nothing — don't fall back to full text
     for word, label in _ORDINAL_TO_CURSO.items():
         if re.search(r"\b" + re.escape(word) + r"\b", t):
             return label
@@ -1437,7 +1454,7 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     # modules fetched inside _fetch_ruct_ficha session (step 4)
     modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
-    _v = "v29"
+    _v = "v30"
     if boe_url:
         plan_text, boe_subjects = _fetch_boe_plan(boe_url)
         return {
@@ -1814,7 +1831,7 @@ elif selected:
     plan_key = f"{selected['title']}|||{selected['university']}"
 
     # Invalidate cached plan if it was built by an older code version
-    _PLAN_VERSION = "v29"
+    _PLAN_VERSION = "v30"
     cached = st.session_state["study_plans"].get(plan_key)
     if cached is not None and cached.get("_v") != _PLAN_VERSION:
         del st.session_state["study_plans"][plan_key]
