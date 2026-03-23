@@ -865,6 +865,45 @@ def _section_to_curso(text: str) -> str:
     return ""
 
 
+_ROMAN_VALUES = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100}
+
+
+def _roman_to_int(s: str) -> int:
+    """Convert a Roman numeral string (I–XII) to an integer, or 0 if unrecognised."""
+    s = s.upper().strip()
+    result, prev = 0, 0
+    for ch in reversed(s):
+        val = _ROMAN_VALUES.get(ch, 0)
+        if not val:
+            return 0
+        result += val if val >= prev else -val
+        prev = val
+    return result
+
+
+def _sem_to_curso(sem: str) -> str:
+    """Derive the academic year from a semester label (2 semesters per year).
+
+    Handles Roman numerals (I, II, III, … VIII) and Arabic digits (1, 2, … 8),
+    including ranges like 'I-II' or '3-4' (takes the first value).
+    Returns '' if the label cannot be parsed as a semester number.
+    """
+    if not sem:
+        return ""
+    s = sem.strip()
+    # Take the first token before any separator (-, /, space)
+    first = re.split(r"[-/\s]", s)[0].strip()
+    # Try Roman numeral
+    n = _roman_to_int(first)
+    if not n:
+        # Try Arabic digit
+        m = re.fullmatch(r"\d+", first)
+        n = int(m.group()) if m else 0
+    if 1 <= n <= 12:
+        return f"{(n + 1) // 2}º"
+    return ""
+
+
 def _parse_boe_subjects_from_content(content) -> list[dict]:
     """
     Extract per-subject rows from an already-fetched BOE #textoxslt BeautifulSoup element.
@@ -954,9 +993,9 @@ def _parse_boe_subjects_from_content(content) -> list[dict]:
                 continue
             car = _clean_text(cells[cc].get_text(strip=True))  if cc  is not None else ""
             cur = _clean_text(cells[urc].get_text(strip=True)) if urc is not None else ""
-            if not cur:
-                cur = section_curso
             sem = _clean_text(cells[sc].get_text(strip=True))  if sc  is not None else ""
+            if not cur:
+                cur = section_curso or _sem_to_curso(sem)
             cat = _categorize_ects(car) or "otros"
             table_subjects.append({
                 "nombre": nom, "caracter": car, "categoria": cat,
@@ -1061,9 +1100,9 @@ def _parse_boe_subjects_from_xml(texto) -> list[dict]:
                 continue
             car = _clean_text(" ".join(cells[cc].itertext()).strip())  if cc  is not None else ""
             cur = _clean_text(" ".join(cells[urc].itertext()).strip()) if urc is not None else ""
-            if not cur:
-                cur = section_curso
             sem = _clean_text(" ".join(cells[sc].itertext()).strip())  if sc  is not None else ""
+            if not cur:
+                cur = section_curso or _sem_to_curso(sem)
             cat = _categorize_ects(car) or "otros"
             table_subjects.append({"nombre": nom, "caracter": car, "categoria": cat,
                                     "ects": ects_val, "curso": cur, "semestre": sem})
@@ -1390,7 +1429,7 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     # modules fetched inside _fetch_ruct_ficha session (step 4)
     modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
-    _v = "v27"
+    _v = "v28"
     if boe_url:
         plan_text, boe_subjects = _fetch_boe_plan(boe_url)
         return {
@@ -1767,7 +1806,7 @@ elif selected:
     plan_key = f"{selected['title']}|||{selected['university']}"
 
     # Invalidate cached plan if it was built by an older code version
-    _PLAN_VERSION = "v27"
+    _PLAN_VERSION = "v28"
     cached = st.session_state["study_plans"].get(plan_key)
     if cached is not None and cached.get("_v") != _PLAN_VERSION:
         del st.session_state["study_plans"][plan_key]
