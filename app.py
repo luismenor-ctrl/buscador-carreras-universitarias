@@ -1329,7 +1329,7 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     # modules fetched inside _fetch_ruct_ficha session (step 4)
     modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
-    _v = "v24"
+    _v = "v25"
     if boe_url:
         plan_text, boe_subjects = _fetch_boe_plan(boe_url)
         return {
@@ -1706,7 +1706,7 @@ elif selected:
     plan_key = f"{selected['title']}|||{selected['university']}"
 
     # Invalidate cached plan if it was built by an older code version
-    _PLAN_VERSION = "v24"
+    _PLAN_VERSION = "v25"
     cached = st.session_state["study_plans"].get(plan_key)
     if cached is not None and cached.get("_v") != _PLAN_VERSION:
         del st.session_state["study_plans"][plan_key]
@@ -1907,10 +1907,12 @@ elif selected:
                         f'</tr>'
                     )
                 has_sem = any(a["semestre"] for a in asigs)
-                sem_th = f'<th style="{th_style}">Semestre</th>' if has_sem else ""
+                sem_th = f'<th style="{th_style}width:80px;">Semestre</th>' if has_sem else ""
+                sem_col_def = '<col style="width:80px;">' if has_sem else ""
                 st.markdown(
                     f'<div style="overflow-x:auto;margin-bottom:1rem;">'
-                    f'<table style="border-collapse:collapse;width:100%;font-family:Inter,sans-serif;">'
+                    f'<table style="border-collapse:collapse;width:100%;table-layout:fixed;font-family:Inter,sans-serif;">'
+                    f'<colgroup><col><col style="width:130px;"><col style="width:60px;">{sem_col_def}</colgroup>'
                     f'<thead><tr>'
                     f'<th style="{th_style}">Asignatura</th>'
                     f'<th style="{th_style}">Tipo</th>'
