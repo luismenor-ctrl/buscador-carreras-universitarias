@@ -1022,6 +1022,11 @@ def _parse_boe_subjects_from_content(content) -> list[dict]:
             car = _clean_text(cells[cc].get_text(strip=True))  if cc  is not None else ""
             cur = _clean_text(cells[urc].get_text(strip=True)) if urc is not None else ""
             sem = _clean_text(cells[sc].get_text(strip=True))  if sc  is not None else ""
+            # Normalize bare digit course number from "Curso" column (e.g. "1" → "1º")
+            if cur and re.fullmatch(r"\d+", cur):
+                n = int(cur)
+                if 1 <= n <= 6:
+                    cur = f"{n}º"
             if not cur:
                 cur = section_curso or _sem_to_curso(sem)
             cat = _categorize_ects(car) or "otros"
@@ -1031,10 +1036,19 @@ def _parse_boe_subjects_from_content(content) -> list[dict]:
             })
 
         if len(table_subjects) >= 3:
-            for s in table_subjects:
-                if s["nombre"] not in seen_names:
-                    subjects.append(s)
-                    seen_names.add(s["nombre"])
+            # Skip module-summary tables: title row before headers, no course info,
+            # and we already have subject data from previous tables.
+            is_module_summary = (
+                header_row_idx == 1
+                and not section_curso
+                and subjects
+                and all(s["curso"] == "" for s in table_subjects)
+            )
+            if not is_module_summary:
+                for s in table_subjects:
+                    if s["nombre"] not in seen_names:
+                        subjects.append(s)
+                        seen_names.add(s["nombre"])
     return subjects
 
 
@@ -1129,6 +1143,11 @@ def _parse_boe_subjects_from_xml(texto) -> list[dict]:
             car = _clean_text(" ".join(cells[cc].itertext()).strip())  if cc  is not None else ""
             cur = _clean_text(" ".join(cells[urc].itertext()).strip()) if urc is not None else ""
             sem = _clean_text(" ".join(cells[sc].itertext()).strip())  if sc  is not None else ""
+            # Normalize bare digit course number from "Curso" column (e.g. "1" → "1º")
+            if cur and re.fullmatch(r"\d+", cur):
+                n = int(cur)
+                if 1 <= n <= 6:
+                    cur = f"{n}º"
             if not cur:
                 cur = section_curso or _sem_to_curso(sem)
             cat = _categorize_ects(car) or "otros"
@@ -1136,10 +1155,20 @@ def _parse_boe_subjects_from_xml(texto) -> list[dict]:
                                     "ects": ects_val, "curso": cur, "semestre": sem})
 
         if len(table_subjects) >= 3:
-            for s in table_subjects:
-                if s["nombre"] not in seen_names:
-                    subjects.append(s)
-                    seen_names.add(s["nombre"])
+            # Skip module-summary tables: title row before headers, no course info on
+            # any entry, and we already have subject data from previous tables.
+            # Example: UCM "Plan de estudios resumido (por módulo)" table.
+            is_module_summary = (
+                header_row_idx == 1
+                and not section_curso
+                and subjects
+                and all(s["curso"] == "" for s in table_subjects)
+            )
+            if not is_module_summary:
+                for s in table_subjects:
+                    if s["nombre"] not in seen_names:
+                        subjects.append(s)
+                        seen_names.add(s["nombre"])
 
     return subjects
 
@@ -1457,7 +1486,7 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     # modules fetched inside _fetch_ruct_ficha session (step 4)
     modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
-    _v = "v32"
+    _v = "v33"
     if boe_url:
         plan_text, boe_subjects = _fetch_boe_plan(boe_url)
         return {
