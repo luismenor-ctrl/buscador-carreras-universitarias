@@ -852,37 +852,39 @@ _ORDINAL_TO_CURSO = {
 
 
 def _section_to_curso(text: str) -> str:
-    """Convert a section header like 'PRIMER CURSO' or '2º CURSO' to a short label.
+    """Convert a section header to a short course label ('1º', '2º', …).
 
-    Rules:
-    - Digits are ONLY used as course numbers when a course keyword ('curso','año','year')
-      is present, AND the digit appears in the portion of the text BEFORE that keyword.
-      This avoids false positives from law numbers, ECTS counts, article numbers, etc.
-    - Without a course keyword, only explicit Spanish/English ordinal words are matched
-      (handles single-cell table rows like "Primero", "Segundo").
+    Handles all BOE heading patterns:
+      - "PRIMER CURSO"          → keyword after ordinal  → prefix has ordinal
+      - "2.º Curso"             → keyword after digit    → prefix has digit
+      - "Curso 1.º"             → keyword before digit   → suffix has digit
+      - "Segundo curso (primer semestre)" → prefix has ordinal
+      - "Primero" / "Segundo"   → no keyword, ordinal word only
+
+    Safety rules:
+      - Digits (1-6) are only used when a course keyword (\bcurso\b|\baño\b|\byear\b)
+        is present in the text, preventing false positives from law article numbers,
+        ECTS credit counts, etc.
+      - Without a course keyword, only explicit ordinal words are matched.
+      - Uses word-boundary regex for keyword detection so 'años'/'cursos' don't match.
     """
     t = text.lower().strip().rstrip(".")
 
-    # Locate the first course keyword and work only with the prefix before it
-    prefix = None
-    for kw in ("curso", "año", "year"):
-        idx = t.find(kw)
-        if idx >= 0:
-            prefix = t[:idx]
-            break
-
-    if prefix is not None:
-        # Digit before "curso/año/year"
-        m = re.search(r"(\d+)", prefix)
-        if m:
-            n = int(m.group(1))
-            if 1 <= n <= 6:
-                return f"{n}º"
-        # Ordinal word before "curso/año/year"
-        for word, label in _ORDINAL_TO_CURSO.items():
-            if re.search(r"\b" + re.escape(word) + r"\b", prefix):
-                return label
-        return ""  # Had a course keyword but couldn't identify the year
+    kw_match = re.search(r'\b(curso|año|year)\b', t)
+    if kw_match:
+        prefix = t[:kw_match.start()]
+        suffix = t[kw_match.end():]
+        # Search prefix first, then suffix (handles both "Primer Curso" and "Curso 1.º")
+        for segment in (prefix, suffix):
+            m = re.search(r"(\d+)", segment)
+            if m:
+                n = int(m.group(1))
+                if 1 <= n <= 6:
+                    return f"{n}º"
+            for word, label in _ORDINAL_TO_CURSO.items():
+                if re.search(r"\b" + re.escape(word) + r"\b", segment):
+                    return label
+        return ""  # Course keyword present but no year identifier found
 
     # No course keyword → digits are never reliable; only match ordinal words
     for word, label in _ORDINAL_TO_CURSO.items():
@@ -1455,7 +1457,7 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     # modules fetched inside _fetch_ruct_ficha session (step 4)
     modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
-    _v = "v31"
+    _v = "v32"
     if boe_url:
         plan_text, boe_subjects = _fetch_boe_plan(boe_url)
         return {
