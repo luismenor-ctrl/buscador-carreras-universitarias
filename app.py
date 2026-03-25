@@ -812,9 +812,13 @@ def _detect_header_cols(cells_text: list[str]):
         if any(k in hl for k in ["asignatura", "denominaci"]):
             if specific_nom_col is None:
                 specific_nom_col = idx
-        elif any(k in hl for k in ["nombre", "módulo", "modulo", "materia"]):
+        elif any(k in hl for k in ["nombre", "materia"]):
             # Exclude "tipo de materia", "carácter de materia", etc. — those are type columns
             if nom_col is None and not any(excl in hl for excl in ["tipo", "carácter", "caracter"]):
+                nom_col = idx
+        elif any(k in hl for k in ["módulo", "modulo"]):
+            # "módulo" is last resort: it names groups, not individual subjects
+            if nom_col is None:
                 nom_col = idx
         elif any(k in hl for k in ["carácter", "caracter", "tipo", "naturaleza"]):
             car_col = idx
@@ -919,14 +923,14 @@ def _sem_to_curso(sem: str) -> str:
     if not sem:
         return ""
     s = sem.strip()
-    # Take the first token before any separator (-, /, space)
-    first = re.split(r"[-/\s]", s)[0].strip()
-    # Try Roman numeral
+    # Take the first token before any separator (-, /, space, comma)
+    first = re.split(r"[-/\s,]", s)[0].strip()
+    # Try Roman numeral first (UAX style: I, II, III…)
     n = _roman_to_int(first)
     if not n:
-        # Try Arabic digit
-        m = re.fullmatch(r"\d+", first)
-        n = int(m.group()) if m else 0
+        # Try leading Arabic digits — re.match handles "1º", "2º" etc.
+        m = re.match(r"(\d+)", first)
+        n = int(m.group(1)) if m else 0
     if 1 <= n <= 12:
         return f"{(n + 1) // 2}º"
     return ""
@@ -1045,8 +1049,19 @@ def _parse_boe_subjects_from_content(content) -> list[dict]:
                 and all(s["curso"] == "" for s in table_subjects)
             )
             if not is_module_summary:
+                existing_per_year: dict = {}
+                for s in subjects:
+                    if s["curso"]:
+                        existing_per_year[s["curso"]] = existing_per_year.get(s["curso"], 0) + 1
+                table_per_year: dict = {}
+                for s in table_subjects:
+                    if s["curso"]:
+                        table_per_year[s["curso"]] = table_per_year.get(s["curso"], 0) + 1
                 for s in table_subjects:
                     if s["nombre"] not in seen_names:
+                        cur = s["curso"]
+                        if cur and existing_per_year.get(cur, 0) > table_per_year.get(cur, 0):
+                            continue
                         subjects.append(s)
                         seen_names.add(s["nombre"])
     return subjects
@@ -1165,8 +1180,22 @@ def _parse_boe_subjects_from_xml(texto) -> list[dict]:
                 and all(s["curso"] == "" for s in table_subjects)
             )
             if not is_module_summary:
+                # Prefer finer granularity: if a year already has MORE subjects than
+                # this table contributes for that year, skip this table's entries for
+                # that year (avoids mixing individual subjects + module aggregates).
+                existing_per_year: dict = {}
+                for s in subjects:
+                    if s["curso"]:
+                        existing_per_year[s["curso"]] = existing_per_year.get(s["curso"], 0) + 1
+                table_per_year: dict = {}
+                for s in table_subjects:
+                    if s["curso"]:
+                        table_per_year[s["curso"]] = table_per_year.get(s["curso"], 0) + 1
                 for s in table_subjects:
                     if s["nombre"] not in seen_names:
+                        cur = s["curso"]
+                        if cur and existing_per_year.get(cur, 0) > table_per_year.get(cur, 0):
+                            continue  # existing data is more granular for this year
                         subjects.append(s)
                         seen_names.add(s["nombre"])
 
@@ -1486,7 +1515,7 @@ def _find_study_plan(title: str, university: str, url_ruct: str = "", url_plan: 
     # modules fetched inside _fetch_ruct_ficha session (step 4)
     modules_subjects = ficha.pop("modules", [])
     boe_url = ficha.get("boe_plan_url", "")
-    _v = "v33"
+    _v = "v34"
     if boe_url:
         plan_text, boe_subjects = _fetch_boe_plan(boe_url)
         return {
